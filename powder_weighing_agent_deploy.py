@@ -123,7 +123,7 @@ def main():
 
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyUSB1', gripper_port='/dev/ttyUSB0')
+    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1')
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
@@ -131,24 +131,29 @@ def main():
     
     powders = ['sand', 'salt', 'sugar', 'flour']
     for powder in powders:
-        
-        with open(f'experiment_{powder}.csv', 'w') as file:
-            csv_writer = csv.writer(file, delimiter = ' ', )
-            csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
             for target in range(5, 16, 5):
-                means =[]
-                i=0
-                while i<=3:
-                    try:
-                        agent.test(model_path='./models/SAC_OMRON_ISAAC_POWDER_WEIGHING_ENVII_deep_spoon2025-01-24 12-59-03.223474', test_num=1, render_flag=False, target_weight=target)
-                    except:
-                        continue
-                    i+=1 
-                    final_weight = env.env.get_observation()[0]
-                    csv_writer.writerow([final_weight, target, abs(target-final_weight)])
-                    means.append(abs(target-final_weight)) 
-                print(means)
-                csv_writer.writerow(['Average', np.mean(means), np.std(means)])
+                skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
+                if skip.strip().lower() == 'y':
+                    continue
+                with open(f'experiment_{powder}_{target}g.csv', 'w') as file:
+                    csv_writer = csv.writer(file, delimiter = ' ', )
+                    csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
+                    means =[]
+                    i=0
+                    while i<=5:
+                        try:
+                            agent.test(model_path='./models/SAC_OMRON_ISAAC_POWDER_WEIGHING_ENVII_deep_spoon2025-01-24 12-59-03.223474', test_num=1, render_flag=False, target_weight=target)
+                        except:
+                            continue
+                        i+=1 
+                        final_weight = env.env.get_observation()[0]
+                        print(f'Experiment results are: {[final_weight, target, abs(target-final_weight*2)]}')
+                        csv_writer.writerow([final_weight, target, abs(target-final_weight*2)])
+                        means.append(abs(target-final_weight)) 
+                        
+        
+                    print(means)
+                    csv_writer.writerow(['Average', np.mean(means), np.std(means)])
 
         
 

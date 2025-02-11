@@ -21,11 +21,21 @@ class Scale:
 		counter = 0
 		value = None
 		data = None
-		while self.serial_com.in_waiting > 0 and data is None:
-				data = self.serial_com.readline().decode('utf-8').strip()
-				data=data.replace('?', '')
-				data = int(data)
-			
+		#  empty buffer 
+		while self.serial_com.in_waiting > 0:
+			data = self.serial_com.readline().decode('utf-8').strip()
+		
+		# make sure we have a stable reading
+		while counter<=10:
+			data = self.serial_com.readline().decode('utf-8').strip()
+			data=data.replace('?', '')
+			data = int(data)
+			if data==value:
+				counter+=1
+			else: 
+				counter=0
+			value=data
+
 		return data
 
 
@@ -41,13 +51,16 @@ class InclineException(Exception):
 class Robot:
 	def __init__(self, robot_hostname, gripper_port):
 		self.gripper = pyRobotiqGripper.RobotiqGripper(portname=gripper_port)
-		self.gripper.activate()
+		try:
+			self.gripper.activate()
+		except:
+			input('Gripper activation failed. Pres ENTER to conitnue or close program')
 		self.robot = panda_py.Panda(robot_hostname)
-		self.robot.move_to_start()
-		self.shake_scale=40
+		# self.robot.move_to_start()
+		self.shake_scale=50
 		self.panda_model = rtb.models.Panda()
 		
-		self.pitch_max = np.pi/6
+		self.pitch_max = np.pi/7
 		self.pitch_min = -0
 		self.panda_model.links[1].qlim=np.array([-0.05,0.05])
 		
@@ -71,9 +84,9 @@ class Robot:
 		self.robot.move_to_joint_position(joint_pos)
 
 	def load_tool(self):
-		self.gripper.open()
-		time.sleep(5)
-		self.gripper.close()
+		# self.gripper.open()
+		# time.sleep(5)
+		# self.gripper.close()
 		print("Please make sure tool is properly in place on gripper")
 		input('Press Enter to continue')
 	
@@ -100,8 +113,8 @@ class Robot:
 			return
 		target_tcp = self.current_tcp * SE3(displacement, 0,0)		
 		
-		trajc = rtb.ctraj(self.current_tcp, target_tcp, 5)
-		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 5)
+		trajc = rtb.ctraj(self.current_tcp, target_tcp, 2)
+		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 2)
 
 		traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=1e-7, ilimit=100, slimit=300) 
 		traj_return = self.panda_model.ikine_LM(trajc_return, q0=traj.q[-1], tol=1e-7, ilimit=100, slimit=300) 
@@ -112,14 +125,14 @@ class Robot:
 		
 
 		try:	
-			self.robot.move_to_joint_position(traj_list, speed_factor=0.1)
+			self.robot.move_to_joint_position(traj_list, speed_factor=0.6)
 		except:
 			raise ShakeException("Trajectroy failed to compute") 
 		
 		
 		while True: 
 			try:	
-				self.robot.move_to_joint_position(traj_return_list, speed_factor=0.1)
+				self.robot.move_to_joint_position(traj_return_list, speed_factor=0.6)
 				break
 			except: 
 				print("Return failed. Trying to recompute trajectory")
@@ -149,7 +162,7 @@ class Robot:
 		target_tcp_tool = current_tcp_tool* SE3.Ry(action)
 		# given tool position compute necesarry end efector position
 		target_tcp = target_tcp_tool * self.panda_model.tool.inv()
-		trajc = rtb.ctraj(self.current_tcp, target_tcp, 5)
+		trajc = rtb.ctraj(self.current_tcp, target_tcp, 10)
 		traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=1e-7, ilimit=100, slimit=300) 
 		# self.panda_model.plot(traj.q, backend='pyplot', movie='panda_motion1.gif')
 		traj_list = [q.reshape(7,1) for q in traj.q]
@@ -163,7 +176,7 @@ class Robot:
 		self.current_pose = traj.q[-1]
 
 	def reset(self):
-		self.robot.move_to_start()
+		# self.robot.move_to_start()
 		self.current_tcp = self.panda_model.fkine(self.initial_pos)
 		self.robot.move_to_joint_position(self.initial_pos)
 		self.current_pose = self.initial_pos
@@ -191,7 +204,7 @@ class WeighingEnv:
 
 	def step(self, action):
 		self.step_no+=1
-		print(f"Received action is")
+		print(f"Received action is {action}")
 		try:	
 			self.robot.incline(action[1])
 		except InclineException:
@@ -203,7 +216,7 @@ class WeighingEnv:
 		except ReturnException:
 			Exception("Shake return failed. Environment needs to be reset")
 		# sleep a bit for the scale to chill
-		time.sleep(2)
+		time.sleep(4)
 		observation = self.get_observation()
 		reward = -np.abs(observation[0]-observation[2])
 		if reward >-1:
@@ -224,8 +237,10 @@ class WeighingEnv:
 			self.target_weight = target_weight
 		else: 
 			self.target_weight = np.random.randint(5, 15)
-		
+		# input('Manual environment reset needed. Press ENTER to continue')
+		# time.sleep(5)
 		self.robot.load_tool()
+		time.sleep(5)
 		self.step_no=0
 		self.finished=False
 		return self.get_observation()
