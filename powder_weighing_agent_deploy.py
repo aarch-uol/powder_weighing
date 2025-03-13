@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import os
 import csv
-
+import sys
 
 class UserDefinedSettings(object):
 
@@ -123,18 +123,25 @@ def main():
 
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1')
+    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyUSB1', gripper_port='/dev/ttyUSB0')
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
 
     
-    powders = ['sand', 'salt', 'sugar', 'flour']
+    # powders = ['sand', 'salt', 'sugar', 'flour']
+    powders=sys.argv[1:]
     for powder in powders:
-            for target in range(5, 16, 5):
+            for target in range(5, 21, 5):
                 skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
-                if skip.strip().lower() == 'y':
+                while skip.strip().lower() != 'n':
+                    if skip.strip().lower() == 'y':
+                        skip = True    
+                        break 
+                        
+                if skip == True:    
                     continue
+                
                 with open(f'experiment_{powder}_{target}g.csv', 'w') as file:
                     csv_writer = csv.writer(file, delimiter = ' ', )
                     csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
@@ -146,9 +153,9 @@ def main():
                         except:
                             continue
                         i+=1 
-                        final_weight = env.env.get_observation()[0]
-                        print(f'Experiment results are: {[final_weight, target, abs(target-final_weight*2)]}')
-                        csv_writer.writerow([final_weight, target, abs(target-final_weight*2)])
+                        final_weight = env.env.get_observation()[0]*2
+                        print(f'Experiment results are: {[final_weight, target, abs(target-final_weight)]}')
+                        csv_writer.writerow([final_weight, target, abs(target-final_weight)])
                         means.append(abs(target-final_weight)) 
                         
         

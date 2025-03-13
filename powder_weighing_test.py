@@ -3,7 +3,7 @@ import time
 import numpy as np
 
 # time.sleep(10)
-env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1')
+env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyUSB1', gripper_port='/dev/ttyUSB0')
 # print(env.get_observation())
 # env.step(np.array([[1,-1]]))
 try:

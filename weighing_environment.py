@@ -64,7 +64,10 @@ class Robot:
 		self.pitch_min = -0
 		self.panda_model.links[1].qlim=np.array([-0.05,0.05])
 		
-		self.initial_pos = np.array([0.0, -0.27, 0.0, -2.9, 0.0, 2.53, 0.78])	
+		# self.initial_pos = np.array([0.0, -0.27, 0.0, -2.9, 0.0, 2.53, 0.78])	
+		# bellow is a test position for vial support 
+		self.initial_pos = np.array([0.06507307922807637, -0.03191415522462927, -0.10739519841114462, -2.614776145438306, -0.0487699608811243, 2.510044754317535, 0.7363003675432609])
+		print(self.initial_pos)
 		self.current_tcp = self.panda_model.fkine(self.initial_pos)
 		
 		self.robot.move_to_joint_position(self.initial_pos)
@@ -109,7 +112,8 @@ class Robot:
 		SHake of the spoon on the x axis
 		"""
 		displacement = -((shake_amplitude+1.0)/2)/self.shake_scale
-		if(displacement==0):
+		# if displacement smaller than 1 mm skip
+		if(displacement>=-0.002):
 			return
 		target_tcp = self.current_tcp * SE3(displacement, 0,0)		
 		
