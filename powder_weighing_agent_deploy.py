@@ -130,19 +130,24 @@ def main():
 
     
     # powders = ['sand', 'salt', 'sugar', 'flour']
-    powders=sys.argv[1:]
+    directory = sys.argv[1]
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    powders=sys.argv[2:]
     for powder in powders:
-            for target in range(5, 21, 5):
+            for target in range(15, 21, 5):
                 skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
                 while skip.strip().lower() != 'n':
                     if skip.strip().lower() == 'y':
                         skip = True    
                         break 
+                    skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
                         
                 if skip == True:    
                     continue
                 
-                with open(f'experiment_{powder}_{target}g.csv', 'w') as file:
+                with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'w') as file:
                     csv_writer = csv.writer(file, delimiter = ' ', )
                     csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
                     means =[]

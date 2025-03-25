@@ -15,8 +15,16 @@ class Scale:
 			baudrate=9600,
 			timeout=1
 		)
+		self._weight=0
 		
-	def read_weight(self):
+	def __read_weight(self):
+		""" 
+			Reads the incoming weight through serial
+			Will wait for a stable weight before getting a 
+			final reading
+
+		"""
+		
 		# counter to check if the weight reading is stable
 		counter = 0
 		value = None
@@ -26,8 +34,14 @@ class Scale:
 			data = self.serial_com.readline().decode('utf-8').strip()
 		
 		# make sure we have a stable reading
-		while counter<=10:
+		skip=1
+		while counter<=100:
 			data = self.serial_com.readline().decode('utf-8').strip()
+			# only compare evry 3rd reading 
+			if skip<3:
+				skip +=1
+				continue
+			skip = 1
 			data=data.replace('?', '')
 			data = int(data)
 			if data==value:
@@ -35,10 +49,34 @@ class Scale:
 			else: 
 				counter=0
 			value=data
-
+		
 		return data
 
+	def reset(self):
+		self._weight=0
 
+	def get_weight(self, timeout=240):
+		"""
+			The weight should not decrease, that is behaviour not seen
+			in training, so if if the weight is smaller it reads again. 
+			Occasionally the scale might get stuck on a lower value. 
+			To overcome that we introduce a timeout, after which, the largest 
+			observed value is taken
+		"""
+		start_time = time.time()
+		weights=[]
+		new_weight = self.__read_weight()
+		while(new_weight<self._weight):
+			weights.append(new_weight)
+			new_weight = self.__read_weight()
+			elapsed=time.time() - start_time
+			if elapsed>timeout:
+				self._weight=max(weights)
+				return self._weight
+		self._weight = new_weight
+		return self._weight
+
+		
 class ShakeException(Exception):
 	pass
 
@@ -57,10 +95,10 @@ class Robot:
 			input('Gripper activation failed. Pres ENTER to conitnue or close program')
 		self.robot = panda_py.Panda(robot_hostname)
 		# self.robot.move_to_start()
-		self.shake_scale=50
+		self.shake_scale=65
 		self.panda_model = rtb.models.Panda()
 		
-		self.pitch_max = np.pi/7
+		self.pitch_max = np.pi/6
 		self.pitch_min = -0
 		self.panda_model.links[1].qlim=np.array([-0.05,0.05])
 		
@@ -75,7 +113,7 @@ class Robot:
 		
 		yaw = SE3.Rz(-np.pi/4)
 		roll = SE3.Rx(-np.pi/180)
-		current_tcp = current_tcp *SE3.Tx(0.26)
+		current_tcp = current_tcp *SE3.Tx(0.25)
 		new_tcp = current_tcp
 		# print(self.current_tcp, new_tcp)
 		self.panda_model.tool = new_tcp
@@ -111,40 +149,33 @@ class Robot:
 		"""
 		SHake of the spoon on the x axis
 		"""
+		
+		tolerance = 1e-7
 		displacement = -((shake_amplitude+1.0)/2)/self.shake_scale
 		# if displacement smaller than 1 mm skip
-		if(displacement>=-0.002):
-			return
+		# if(displacement>=-0.002):
+		# 	return
 		target_tcp = self.current_tcp * SE3(displacement, 0,0)		
 		
 		trajc = rtb.ctraj(self.current_tcp, target_tcp, 2)
 		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 2)
-
-		traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=1e-7, ilimit=100, slimit=300) 
-		traj_return = self.panda_model.ikine_LM(trajc_return, q0=traj.q[-1], tol=1e-7, ilimit=100, slimit=300) 
+		while True:
+			try:
+				traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=tolerance, ilimit=100, slimit=300) 
+				traj_return = self.panda_model.ikine_LM(trajc_return, q0=traj.q[-1], tol=tolerance, ilimit=100, slimit=300) 
+				break
+			except:
+				tolerance=tolerance*10
+				if tolerance >1e-2:
+					raise ShakeException('Trajectory failed to compute')
 		waypoints = np.vstack((traj.q, traj_return.q))
 		# self.panda_model.plot(waypoints, backend='pyplot', movie='panda_motion1.gif')
 		traj_list = [q.reshape(7,1) for q in traj.q]
 		traj_return_list = [q.reshape(7,1) for q in traj_return.q]
 		
+		self.robot.move_to_joint_position(traj_list, speed_factor=0.5)
+		self.robot.move_to_joint_position(traj_return_list, speed_factor=0.5)
 
-		try:	
-			self.robot.move_to_joint_position(traj_list, speed_factor=0.6)
-		except:
-			raise ShakeException("Trajectroy failed to compute") 
-		
-		
-		while True: 
-			try:	
-				self.robot.move_to_joint_position(traj_return_list, speed_factor=0.6)
-				break
-			except: 
-				print("Return failed. Trying to recompute trajectory")
-				traj_return = self.panda_model.ikine_LM(trajc_return, q0=traj.q[-1], tol=1e-7, ilimit=100, slimit=300) 
-				traj_return_list = [q.reshape(7,1) for q in traj_return.q]
-				counter+=1
-				if counter >=3:
-					raise ReturnException("Cannot compute return trajectory")
 
 		self.current_pose = traj_return.q[-1]
 
@@ -153,27 +184,37 @@ class Robot:
 		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		action = incline_action
+		# if action zero or action outside of limits return
 		if action ==0:
 			return
-		# print(self.get_pitch(), action, new_pitch, self.pitch_min, self.pitch_max)
-		if new_pitch>self.pitch_max:
-			action = 0
+		elif new_pitch>self.pitch_max:
+			return
 		elif new_pitch < self.pitch_min:
-			action = 0
+			return
 		# get the current tooln positon
 		current_tcp_tool = self.current_tcp * self.panda_model.tool
 		# compute adjusted tool position
-		target_tcp_tool = current_tcp_tool* SE3.Ry(action)
+		if incline_action >0:
+			target_tcp_tool = current_tcp_tool* SE3.Ry(action) *  SE3(0.001, -0.0005,0)
+		else:
+			# increasinhg the incline causes drift. We adjust for that
+			target_tcp_tool = current_tcp_tool* SE3.Ry(action)* SE3(-0.0026, 0.0005,0)
 		# given tool position compute necesarry end efector position
 		target_tcp = target_tcp_tool * self.panda_model.tool.inv()
-		trajc = rtb.ctraj(self.current_tcp, target_tcp, 10)
-		traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=1e-7, ilimit=100, slimit=300) 
-		# self.panda_model.plot(traj.q, backend='pyplot', movie='panda_motion1.gif')
-		traj_list = [q.reshape(7,1) for q in traj.q]
-		try: 
-			self.robot.move_to_joint_position(traj_list, speed_factor=0.1)
-		except: 
-			raise InclineException("Incline trajectory failed to compute")
+		trajc = rtb.ctraj(self.current_tcp, target_tcp, 2)
+		tolerance=1e-7
+		while True:
+			try: 
+				traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=tolerance, ilimit=100, slimit=300) 
+				# self.panda_model.plot(traj.q, backend='pyplot', movie='panda_motion1.gif')
+				traj_list = [q.reshape(7,1) for q in traj.q]
+				self.robot.move_to_joint_position(traj_list, speed_factor=0.15)
+				break
+			except: 
+				print(f'MSG: Incline failed. Reattempting with tolerance {tolerance}')
+				tolerance = tolerance * 10
+				if tolerance>1e-2:
+					raise InclineException("Incline trajectory failed to compute")
 
 		self.current_tcp = target_tcp
 		#  the current pose is the last pose executed
@@ -199,12 +240,22 @@ class WeighingEnv:
 		# self.robot.load_tool()
 		self.target_weight = np.random.randint(5, 15)
 
+	def __shake_surplus(self):
+		"""
+			Small shake movement to dump extra material after loading spoon
+			Call to even out before actual dumping
+			This is needed as the trnsportation in between scooping 
+			and dumnping would naturaly remove excess powders from spoon
+		"""
+		for i in range(0,10):
+			self.robot.shake(-0.75)
+
 	def get_observation(self):
 		# adjust the pitch angle to relfect the angle seen in the simulator
 		pitch = self.robot.get_pitch() - np.pi/2
 		# print(np.rad2deg(pitch))
 		#  the original work had the weights devided by 2 in the observation space. So do MOST of our agennts (see notes)
-		return np.array([self.scale.read_weight()/2,pitch*-5,self.target_weight/2])
+		return np.array([self.scale.get_weight()/2,pitch*-5,self.target_weight/2])
 
 	def step(self, action):
 		self.step_no+=1
@@ -236,14 +287,18 @@ class WeighingEnv:
 	def reset(self, target_weight=None):
 		print('MSG: Environment reset ...')
 		self.robot.reset()
-		
+		self.scale.reset()
 		if target_weight is not None:
 			self.target_weight = target_weight
 		else: 
 			self.target_weight = np.random.randint(5, 15)
-		# input('Manual environment reset needed. Press ENTER to continue')
+		
 		# time.sleep(5)
 		self.robot.load_tool()
+		self.__shake_surplus()
+		if self.scale.get_weight()!=0:
+			input('Manual scale reset needed. Press ENTER to continue')
+			self.scale.reset()
 		time.sleep(5)
 		self.step_no=0
 		self.finished=False

@@ -10,10 +10,10 @@ try:
     while True:
         
         for i in range(10):
-            action = np.random.uniform(-1,1, (2))
-            print(f'Action send is : {action}')
-            obs = env.step(action)
-            # obs=env.step(np.array([1,0]))
+            # action = np.random.uniform(-1,1, (2))
+            # print(f'Action send is : {action}')
+            # obs = env.step(action)
+            obs=env.step(np.array([1,-1]))
             print(obs)
 
         env.reset()
