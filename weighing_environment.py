@@ -5,8 +5,9 @@ import numpy as np
 import time
 import roboticstoolbox as rtb
 from spatialmath import SE3
-
-
+from swift import Swift
+from custom_panda import Panda
+import spatialgeometry as sg
 
 class Scale:
 	def __init__(self, scale_port):
@@ -35,10 +36,10 @@ class Scale:
 		
 		# make sure we have a stable reading
 		skip=1
-		while counter<=100:
+		while counter<=50:
 			data = self.serial_com.readline().decode('utf-8').strip()
 			# only compare evry 3rd reading 
-			if skip<3:
+			if skip<2:
 				skip +=1
 				continue
 			skip = 1
@@ -55,7 +56,7 @@ class Scale:
 	def reset(self):
 		self._weight=0
 
-	def get_weight(self, timeout=240):
+	def get_weight(self, timeout=120):
 		"""
 			The weight should not decrease, that is behaviour not seen
 			in training, so if if the weight is smaller it reads again. 
@@ -96,28 +97,26 @@ class Robot:
 		self.robot = panda_py.Panda(robot_hostname)
 		# self.robot.move_to_start()
 		self.shake_scale=65
-		self.panda_model = rtb.models.Panda()
+		self.panda_model = Panda()
 		
 		self.pitch_max = np.pi/6
 		self.pitch_min = -0
-		self.panda_model.links[1].qlim=np.array([-0.05,0.05])
+		# self.panda_model.links[1].qlim=np.array([-0.05,0.05])
 		
 		# self.initial_pos = np.array([0.0, -0.27, 0.0, -2.9, 0.0, 2.53, 0.78])	
 		# bellow is a test position for vial support 
 		self.initial_pos = np.array([0.06507307922807637, -0.03191415522462927, -0.10739519841114462, -2.614776145438306, -0.0487699608811243, 2.510044754317535, 0.7363003675432609])
-		print(self.initial_pos)
 		self.current_tcp = self.panda_model.fkine(self.initial_pos)
 		
 		self.robot.move_to_joint_position(self.initial_pos)
-		current_tcp = self.panda_model.tool
 		
-		yaw = SE3.Rz(-np.pi/4)
-		roll = SE3.Rx(-np.pi/180)
-		current_tcp = current_tcp *SE3.Tx(0.25)
-		new_tcp = current_tcp
-		# print(self.current_tcp, new_tcp)
-		self.panda_model.tool = new_tcp
 		self.current_pose = self.initial_pos
+		# open swift to visualise	
+		self.viz = Swift()
+		self.viz.launch( )
+		self.viz.add(self.panda_model, readonly=True)
+		self.tcp_viz=sg.Axes(0.1)
+		self.viz.add(self.tcp_viz)
 		
 
 
@@ -138,9 +137,11 @@ class Robot:
 		"""
 			Return current pitch of the tcp in rads
 		"""
-		pose = self.robot.get_pose()
-		pitch = np.arcsin(-pose[2,0])
-		return pitch
+		pose = self.panda_model.fkine(self.robot.q)
+		# print(pose, pose.rpy())
+		# pitch = np.arcsin(-pose[2,0])
+		
+		return pose.rpy()[1]
 
 
 		
@@ -150,40 +151,62 @@ class Robot:
 		SHake of the spoon on the x axis
 		"""
 		
+		# update model pose wrt. the real robot
+		self.current_pose = self.robot.get_state().q
+		self.panda_model.q=self.current_pose
+		self.current_tcp=self.panda_model.fkine(self.current_pose)
+
 		tolerance = 1e-7
 		displacement = -((shake_amplitude+1.0)/2)/self.shake_scale
-		# if displacement smaller than 1 mm skip
-		# if(displacement>=-0.002):
-		# 	return
+		if displacement >= -0.001:
+			return
 		target_tcp = self.current_tcp * SE3(displacement, 0,0)		
 		
-		trajc = rtb.ctraj(self.current_tcp, target_tcp, 2)
-		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 2)
+		trajc = rtb.ctraj(self.current_tcp, target_tcp, 4)
+		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 4)
 		while True:
 			try:
-				traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=tolerance, ilimit=100, slimit=300) 
-				traj_return = self.panda_model.ikine_LM(trajc_return, q0=traj.q[-1], tol=tolerance, ilimit=100, slimit=300) 
+				traj = self.panda_model.ikine_LM(trajc, q0=np.tile(self.current_pose,(300,1)), tol=tolerance, ilimit=100, slimit=300) 
+				traj_return = self.panda_model.ikine_LM(trajc_return, q0=np.tile(traj.q[-1], (300,1)), tol=tolerance, ilimit=100, slimit=300) 
+				# check for large joint deviations
+				if np.any(np.abs(traj.q-self.current_pose) > np.radians(10)) or np.any(np.abs(traj_return.q-self.current_pose) > np.radians(10)):
+					continue
 				break
 			except:
 				tolerance=tolerance*10
-				if tolerance >1e-2:
+				if tolerance >1e-3:
 					raise ShakeException('Trajectory failed to compute')
 		waypoints = np.vstack((traj.q, traj_return.q))
-		# self.panda_model.plot(waypoints, backend='pyplot', movie='panda_motion1.gif')
+		for q in waypoints:
+			self.panda_model.q = q
+			self.tcp_viz.T=self.panda_model.fkine(q)
+			time.sleep(0.05)
+			self.viz.step()
+			
+		
+		# self.panda_model.plot(waypoints, block=True)
 		traj_list = [q.reshape(7,1) for q in traj.q]
 		traj_return_list = [q.reshape(7,1) for q in traj_return.q]
-		
-		self.robot.move_to_joint_position(traj_list, speed_factor=0.5)
-		self.robot.move_to_joint_position(traj_return_list, speed_factor=0.5)
+
+		self.robot.move_to_joint_position(traj_list, speed_factor=0.1)
+		self.robot.move_to_joint_position(traj_return_list, speed_factor=0.1)
 
 
-		self.current_pose = traj_return.q[-1]
 
 
 	def incline(self, incline_angle):
+		"""
+			Incline of the spoon on the pitch
+		"""
+		# update model pose wrt. the real robot
+		self.current_pose = self.robot.get_state().q
+		self.panda_model.q=self.current_pose
+		self.current_tcp=self.panda_model.fkine(self.current_pose)
+
 		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		action = incline_action
+		print(new_pitch, self.pitch_max, self.pitch_min)
 		# if action zero or action outside of limits return
 		if action ==0:
 			return
@@ -191,34 +214,26 @@ class Robot:
 			return
 		elif new_pitch < self.pitch_min:
 			return
-		# get the current tooln positon
-		current_tcp_tool = self.current_tcp * self.panda_model.tool
-		# compute adjusted tool position
-		if incline_action >0:
-			target_tcp_tool = current_tcp_tool* SE3.Ry(action) *  SE3(0.001, -0.0005,0)
-		else:
-			# increasinhg the incline causes drift. We adjust for that
-			target_tcp_tool = current_tcp_tool* SE3.Ry(action)* SE3(-0.0026, 0.0005,0)
-		# given tool position compute necesarry end efector position
-		target_tcp = target_tcp_tool * self.panda_model.tool.inv()
-		trajc = rtb.ctraj(self.current_tcp, target_tcp, 2)
+		target_tcp = self.current_tcp* SE3.Ry(action)
 		tolerance=1e-7
 		while True:
 			try: 
-				traj = self.panda_model.ikine_LM(trajc, q0=self.current_pose, tol=tolerance, ilimit=100, slimit=300) 
-				# self.panda_model.plot(traj.q, backend='pyplot', movie='panda_motion1.gif')
-				traj_list = [q.reshape(7,1) for q in traj.q]
-				self.robot.move_to_joint_position(traj_list, speed_factor=0.15)
+				traj = self.panda_model.ikine_LM(target_tcp, q0=np.tile(self.current_pose,(300,1)), tol=tolerance, ilimit=100, slimit=300) 
+				if np.any(np.abs(traj.q-self.current_pose) > np.radians(10)):
+					continue
+				self.panda_model.q = traj.q
+				self.tcp_viz.T=self.panda_model.fkine(traj.q)
+				self.viz.step()
+				time.sleep(1)
+				# traj_list = [q.reshape(7,1) for q in traj.q]
+				self.robot.move_to_joint_position(traj.q, speed_factor=0.05)
 				break
 			except: 
 				print(f'MSG: Incline failed. Reattempting with tolerance {tolerance}')
 				tolerance = tolerance * 10
-				if tolerance>1e-2:
+				if tolerance>1e-3:
 					raise InclineException("Incline trajectory failed to compute")
-
-		self.current_tcp = target_tcp
-		#  the current pose is the last pose executed
-		self.current_pose = traj.q[-1]
+	
 
 	def reset(self):
 		# self.robot.move_to_start()
@@ -255,6 +270,7 @@ class WeighingEnv:
 		pitch = self.robot.get_pitch() - np.pi/2
 		# print(np.rad2deg(pitch))
 		#  the original work had the weights devided by 2 in the observation space. So do MOST of our agennts (see notes)
+		return np.array([0,pitch*-5,0])
 		return np.array([self.scale.get_weight()/2,pitch*-5,self.target_weight/2])
 
 	def step(self, action):
@@ -294,11 +310,11 @@ class WeighingEnv:
 			self.target_weight = np.random.randint(5, 15)
 		
 		# time.sleep(5)
-		self.robot.load_tool()
+		# self.robot.load_tool()
 		self.__shake_surplus()
-		if self.scale.get_weight()!=0:
-			input('Manual scale reset needed. Press ENTER to continue')
-			self.scale.reset()
+		# if self.scale.get_weight()!=0:
+		# 	input('Manual scale reset needed. Press ENTER to continue')
+		# 	self.scale.reset()
 		time.sleep(5)
 		self.step_no=0
 		self.finished=False
