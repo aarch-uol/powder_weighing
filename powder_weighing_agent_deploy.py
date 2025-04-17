@@ -152,9 +152,9 @@ def main():
                     csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
                     means =[]
                     i=0
-                    while i<=5:
+                    while i<5:
                         try:
-                            agent.test(model_path='./models/SAC_OMRON_ISAAC_POWDER_WEIGHING_ENVII_deep_spoon2025-01-24 12-59-03.223474', test_num=1, render_flag=False, target_weight=target)
+                            agent.test(model_path='./models/SAC_ISAAC_POWDER_WEIGHING_CURICULLUM_ENVII_7_per_class_32025-03-16 17-25-44.862095', test_num=1, render_flag=False, target_weight=target)
                         except:
                             continue
                         i+=1 

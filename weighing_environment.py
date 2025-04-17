@@ -56,7 +56,7 @@ class Scale:
 	def reset(self):
 		self._weight=0
 
-	def get_weight(self, timeout=120):
+	def get_weight(self, timeout=90):
 		"""
 			The weight should not decrease, that is behaviour not seen
 			in training, so if if the weight is smaller it reads again. 
@@ -67,7 +67,8 @@ class Scale:
 		start_time = time.time()
 		weights=[]
 		new_weight = self.__read_weight()
-		while(new_weight<self._weight):
+		#  if the error between this and last reading are greater than 1 the redo. 
+		while(abs(new_weight-self._weight)>1):
 			weights.append(new_weight)
 			new_weight = self.__read_weight()
 			elapsed=time.time() - start_time
@@ -105,7 +106,8 @@ class Robot:
 		
 		# self.initial_pos = np.array([0.0, -0.27, 0.0, -2.9, 0.0, 2.53, 0.78])	
 		# bellow is a test position for vial support 
-		self.initial_pos = np.array([0.06507307922807637, -0.03191415522462927, -0.10739519841114462, -2.614776145438306, -0.0487699608811243, 2.510044754317535, 0.7363003675432609])
+		self.initial_pos = np.array([0.01373907, 0.02742517, -0.01605499, -2.39315202, -0.00844878, 2.22456631, 0.77540909])
+		self.initial_tcp = self.panda_model.fkine(self.initial_pos)
 		self.current_tcp = self.panda_model.fkine(self.initial_pos)
 		
 		self.robot.move_to_joint_position(self.initial_pos)
@@ -148,22 +150,26 @@ class Robot:
 
 	def shake(self, shake_amplitude):
 		"""
-		SHake of the spoon on the x axis
+			Shake of the spoon on the x axis
 		"""
 		
 		# update model pose wrt. the real robot
 		self.current_pose = self.robot.get_state().q
 		self.panda_model.q=self.current_pose
 		self.current_tcp=self.panda_model.fkine(self.current_pose)
+		# the shake should also correct any deviation from the vial space caused by
+		# the incline
+
 
 		tolerance = 1e-7
 		displacement = -((shake_amplitude+1.0)/2)/self.shake_scale
 		if displacement >= -0.001:
 			return
+		
 		target_tcp = self.current_tcp * SE3(displacement, 0,0)		
 		
-		trajc = rtb.ctraj(self.current_tcp, target_tcp, 4)
-		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 4)
+		trajc = rtb.ctraj(self.current_tcp, target_tcp, 2)
+		trajc_return = rtb.ctraj(target_tcp, self.current_tcp, 2)
 		while True:
 			try:
 				traj = self.panda_model.ikine_LM(trajc, q0=np.tile(self.current_pose,(300,1)), tol=tolerance, ilimit=100, slimit=300) 
@@ -187,9 +193,15 @@ class Robot:
 		# self.panda_model.plot(waypoints, block=True)
 		traj_list = [q.reshape(7,1) for q in traj.q]
 		traj_return_list = [q.reshape(7,1) for q in traj_return.q]
-
-		self.robot.move_to_joint_position(traj_list, speed_factor=0.1)
-		self.robot.move_to_joint_position(traj_return_list, speed_factor=0.1)
+		
+		try:
+			self.robot.move_to_joint_position(traj_list, speed_factor=0.8)
+		except:
+			raise ShakeException('Failed to do forwards movement')
+		try:
+			self.robot.move_to_joint_position(traj_return_list, speed_factor=0.8)
+		except:
+			raise ReturnException('Failed to do return motion')
 
 
 
@@ -206,7 +218,7 @@ class Robot:
 		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		action = incline_action
-		print(new_pitch, self.pitch_max, self.pitch_min)
+		# print(new_pitch, self.pitch_max, self.pitch_min)
 		# if action zero or action outside of limits return
 		if action ==0:
 			return
@@ -214,7 +226,13 @@ class Robot:
 			return
 		elif new_pitch < self.pitch_min:
 			return
-		target_tcp = self.current_tcp* SE3.Ry(action)
+		# tcp tends to go forwards on negative incline so correct for that
+		if incline_angle <0:
+			target_tcp = self.current_tcp* SE3.Ry(action) *SE3(-0.0017, 0, 0)
+		else:
+			# for positive incline leave as is for now
+			target_tcp = self.current_tcp* SE3.Ry(action) *SE3(0, 0, -0.0013)
+
 		tolerance=1e-7
 		while True:
 			try: 
@@ -225,8 +243,7 @@ class Robot:
 				self.tcp_viz.T=self.panda_model.fkine(traj.q)
 				self.viz.step()
 				time.sleep(1)
-				# traj_list = [q.reshape(7,1) for q in traj.q]
-				self.robot.move_to_joint_position(traj.q, speed_factor=0.05)
+				self.robot.move_to_joint_position(traj.q, speed_factor=0.1)
 				break
 			except: 
 				print(f'MSG: Incline failed. Reattempting with tolerance {tolerance}')
@@ -263,29 +280,44 @@ class WeighingEnv:
 			and dumnping would naturaly remove excess powders from spoon
 		"""
 		for i in range(0,10):
-			self.robot.shake(-0.75)
+			try:
+				self.robot.shake(-0.75)
+			except:
+				continue
 
 	def get_observation(self):
 		# adjust the pitch angle to relfect the angle seen in the simulator
 		pitch = self.robot.get_pitch() - np.pi/2
 		# print(np.rad2deg(pitch))
 		#  the original work had the weights devided by 2 in the observation space. So do MOST of our agennts (see notes)
-		return np.array([0,pitch*-5,0])
+		# return np.array([0,pitch*-5,0])
 		return np.array([self.scale.get_weight()/2,pitch*-5,self.target_weight/2])
 
 	def step(self, action):
 		self.step_no+=1
 		print(f"Received action is {action}")
-		try:	
-			self.robot.incline(action[1])
-		except InclineException:
-			self.robot.incline(action[1])
-		try:
-			self.robot.shake(action[0])
-		except ShakeException:
-			self.robot.shake(action[0])
-		except ReturnException:
-			Exception("Shake return failed. Environment needs to be reset")
+
+		# if there's an incline exception try again
+		counter =0
+		while True:
+			try:	
+				self.robot.incline(action[1])
+				break
+			except InclineException:
+				counter+=1
+				if counter ==3:
+					raise Exception('Environment needs to be reset')
+		counter=0
+		while True:
+			try:
+				self.robot.shake(action[0])
+				break
+			except ShakeException:
+				counter+=1
+				if counter==3:
+					raise Exception('Environment needs to be reset')
+			except ReturnException:
+				raise Exception("Shake return failed. Environment needs to be reset")
 		# sleep a bit for the scale to chill
 		time.sleep(4)
 		observation = self.get_observation()
@@ -310,11 +342,11 @@ class WeighingEnv:
 			self.target_weight = np.random.randint(5, 15)
 		
 		# time.sleep(5)
-		# self.robot.load_tool()
+		self.robot.load_tool()
 		self.__shake_surplus()
-		# if self.scale.get_weight()!=0:
-		# 	input('Manual scale reset needed. Press ENTER to continue')
-		# 	self.scale.reset()
+		if self.scale.get_weight()!=0:
+			input('Manual scale reset needed. Press ENTER to continue')
+			self.scale.reset()
 		time.sleep(5)
 		self.step_no=0
 		self.finished=False
