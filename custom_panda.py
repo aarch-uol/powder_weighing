@@ -43,7 +43,7 @@ class Panda(Robot):
             urdf_filepath=urdf_filepath,
         )
 
-        self.grippers[0].tool =  SE3.Rz(-3*np.pi/4)* SE3(0.225, 0, 0.06)
+        self.grippers[0].tool =  SE3.Rz(-3*np.pi/4)* SE3(0.22, 0, 0.06)
 
         self.qdlim = np.array(
             [[2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100, 3.0, 3.0],

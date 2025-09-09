@@ -117,20 +117,32 @@ class InterfaceEnvironment():
 
 
 from SAC.SACAgent import SACAgent
-
+import argparse
+from scooping_mechanism import ScoopingMachine
 
 def main():
+    
+    parser = argparse.ArgumentParser(description="Run scooping sequence with force feedback.")
+    parser.add_argument("scooping_filename", help="JSON file with Pre/Post-scooping moves.")
+    parser.add_argument("positions_filename", help="JSON file with container and spoon positions.")
+    parser.add_argument("directory", help="Output directory name")
+    parser.add_argument("model", help="Model to be used")
+    parser.add_argument("powder", help="Name of powder to be used")
+    args = parser.parse_args()
 
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM1', gripper_port='/dev/ttyUSB0')
+    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM0', gripper_port='/dev/ttyUSB0')
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
+    scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True)
+
 
     
+    
     # powders = ['sand', 'salt', 'sugar', 'flour']
-    directory = sys.argv[1]
+    directory = args.directory
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -142,7 +154,8 @@ def main():
         'random_acute': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle'
     }
 
-    model = sys.argv[2]
+    model = args.model
+    powder = args.powder
 
     try:
         model_path = models[model]
@@ -150,41 +163,48 @@ def main():
         print(f"""Model {model} not known. Exiting """)
         exit(1)
 
-    powders=sys.argv[3:]
-    for powder in powders:
-            for target in range(15, 21, 5):
-                skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
-                while skip.strip().lower() != 'n':
-                    if skip.strip().lower() == 'y':
-                        skip = True    
-                        break 
-                    skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
-                        
-                if skip == True:    
-                    continue
-                
-                with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'w') as file:
-                    csv_writer = csv.writer(file, delimiter = ' ', )
-                    csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
-                    means =[]
-                    i=0
-                    while i<5:
-                        # try:
-                        agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
-                        # except:
-                        #     print("Failed to load agent")
-                        #     continue
-                        i+=1 
-                        final_weight = env.env.get_observation()[0]*2
-                        print(f'Experiment results are: {[final_weight, target, abs(target-final_weight)]}')
-                        csv_writer.writerow([final_weight, target, abs(target-final_weight)])
-                        file.flush()
-                        means.append(abs(target-final_weight)) 
-                        
-        
-                    print(means)
-                    csv_writer.writerow(['Average', np.mean(means), np.std(means)])
+        scooper.load_powder()
+        scooper.pickup_spoon()
+       
 
+        for target in range(15, 21, 5):
+            skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
+            while skip.strip().lower() != 'n':
+                if skip.strip().lower() == 'y':
+                    skip = True    
+                    break 
+                skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
+                    
+            if skip == True:    
+                continue
+            
+            with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'w') as file:
+                csv_writer = csv.writer(file, delimiter = ' ', )
+                csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
+                means =[]
+                i=0
+                while i<5:
+
+                    if not scooper.scoop():
+                        input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
+                        continue
+                    try:
+                        agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
+                    except:
+                        print("Failed to load agent")
+                        continue
+                    i+=1 
+                    final_weight = env.env.get_observation()[0]*2
+                    print(f'Experiment results are: {[final_weight, target, abs(target-final_weight)]}')
+                    csv_writer.writerow([final_weight, target, abs(target-final_weight)])
+                    file.flush()
+                    means.append(abs(target-final_weight)) 
+                    scooper.reset_scoop_pose()
+    
+                print(means)
+                csv_writer.writerow(['Average', np.mean(means), np.std(means)])
+        scooper.drop_spoon()
+        scooper.unload_powder()
         
 
 if __name__=="__main__":
