@@ -29,6 +29,7 @@ class WeighingEnv:
 		# self.robot.reset()
 		# self.robot.load_tool()
 		self.target_weight = np.random.randint(5, 15)
+		self.library= library
 
 	def __shake_surplus(self):
 		"""
@@ -106,7 +107,7 @@ class WeighingEnv:
 			self.target_weight = np.random.randint(5, 15)
 		
 		# time.sleep(5)
-		self.robot.load_tool()
+		# self.robot.load_tool()
 		# self.__shake_surplus()
 		self.scale.reset()
 		time.sleep(1)

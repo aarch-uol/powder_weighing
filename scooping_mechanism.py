@@ -44,11 +44,14 @@ OPTIMIAL_COVERAGE = 35
 
 class ScoopingMachine():
 
-    def __init__(self, scooping_filename, positions_filename, verbose = False):
+    def __init__(self, scooping_filename, positions_filename, verbose = False, robot=None):
         self.gripper = RobotiqGripper()
         # initialise robot
-        self.robot = Robot("10.0.0.1")
-        self.robot.relative_dynamics_factor = 0.01  
+        if robot is not None:
+            self.robot = robot
+        else:
+            robot=Robot('10.0.0.1')
+        self.robot.relative_dynamics_factor = 0.05  
         self.verbose = verbose
         self.speed = 0.01
 
