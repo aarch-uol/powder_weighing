@@ -106,18 +106,20 @@ class WeighingEnv:
 		else: 
 			self.target_weight = np.random.randint(5, 15)
 		
-		# time.sleep(5)
+		time.sleep(3)
 		# self.robot.load_tool()
 		# self.__shake_surplus()
 		self.scale.reset()
+		
 		time.sleep(1)
-		if  isinstance(self.scale, FisherScale):
-			if self.scale.get_weight()!=0:
-				input('Manual scale reset needed. Press ENTER to continue')
-				self.scale.reset()
-		time.sleep(5)
+	# if  isinstance(self.scale, FisherScale):
+		if abs(self.scale.get_weight() - 0)>1:
+			input('Manual scale reset needed. Press ENTER to continue')
+			self.scale.reset()
+		# time.sleep(5)
 		self.step_no=0
 		self.finished=False
+		print('MSG: Environment reset successfully')
 		return self.get_observation()
 
  

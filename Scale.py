@@ -44,6 +44,8 @@ class SartoriusEntrisScale(Scale):
 		self._weight=0
 		# send tar command
 		self.serial_com.write(bytearray('!T\r\n', 'ascii'))
+		sleep(2)
+
 
 class FisherScale(Scale):
 	

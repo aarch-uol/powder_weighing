@@ -64,7 +64,7 @@ class FrankyRobot(Robot):
 		self.pitch_max = 45*np.pi/180
 		self.pitch_min = -0
 		# self.shake_dynamics_factor=[0.2, 0.12, 0.05]
-		self.shake_dynamics_factor=[0.3, 0.3, 0.1]
+		self.shake_dynamics_factor=np.array([0.4, 0.22, 0.35])
 
 	def set_shake_dynamics_factor(self, dynamics_factor: list[float]):
 		self.shake_dynamics_factor=dynamics_factor
@@ -85,10 +85,6 @@ class FrankyRobot(Robot):
 		
 	def incline(self, incline_angle):
 
-		original_dynamics = self.robot.relative_dynamics_factor
-		self.robot.relative_dynamics_factor= franky.RelativeDynamicsFactor(
- 			   velocity=1, acceleration=1, jerk=1
-		)
 		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		# print(incline_action)
@@ -106,6 +102,16 @@ class FrankyRobot(Robot):
 		end_effector_pose = self.robot.current_pose.end_effector_pose
 		position = end_effector_pose.translation
 		current_quat = end_effector_pose.quaternion
+
+		# x axis correction for inclination
+		print(incline_action)
+		if incline_angle<0:
+			if new_pitch > 15*np.pi/180:
+				correction = franky.Affine(translation=np.array([-0.002, 0, 0.001]))
+				position = (end_effector_pose * correction).translation
+		else:
+			correction = franky.Affine(translation=np.array([-0.00, 0, -0.0005]))
+			position = (end_effector_pose * correction).translation
 		# print(position, type(position))
 			
 		rot = R.from_quat(current_quat).as_matrix()
@@ -123,17 +129,11 @@ class FrankyRobot(Robot):
 		achieved_quat = self.robot.current_pose.end_effector_pose.quaternion
 		achieved_pitch = R.from_quat(achieved_quat).as_euler('xyz', degrees=True)[1]
 		# print(f"Final pitch: {achieved_pitch:.1f}°")
-		self.robot.relative_dynamics_factor=original_dynamics
 		return True
 	
 	def shake(self, shake_amplitude):
 		# get current pose and orientation
 
-
-		original_dynamics = self.robot.relative_dynamics_factor
-		self.robot.relative_dynamics_factor= franky.RelativeDynamicsFactor(
- 			   velocity=1, acceleration=1, jerk=1
-		)
 		ee_pose = self.robot.current_pose.end_effector_pose
 
 		rot = R.from_quat(ee_pose.quaternion)
@@ -152,7 +152,7 @@ class FrankyRobot(Robot):
 		shake_motion = franky.CartesianWaypointMotion(
 			[
 				franky.CartesianWaypoint(ee_pose),
-				franky.CartesianWaypoint(displaced_position),
+				franky.CartesianWaypoint(franky.CartesianState(displaced_position, velocity=franky.Twist([-0.0, 0.0, 0.0]))),
 				franky.CartesianWaypoint(ee_pose)
 			],
 			# sand optimised values: 0.2, 0.12, 0.05
@@ -161,8 +161,34 @@ class FrankyRobot(Robot):
 
 		# if dynamics of movement are 1 ,1 ,1 maintains main robot ones
 		# dynamics is relative to the rest of the system
-		self.robot.move(shake_motion)
-		self.robot.relative_dynamics_factor=original_dynamics
+		success = False
+		dynamics_dicount = 0
+		while not success:
+			try:
+				self.robot.move(shake_motion)
+				success=True
+			except:
+				dynamics_dicount +=0.02
+				print("Failed to do shake motion")
+				if dynamics_dicount < min(self.shake_dynamics_factor):	
+						self.shake_dynamics_factor -= dynamics_dicount
+						print(self.shake_dynamics_factor)
+				else:
+					raise ShakeException('Failed to do forwards movement')
+
+				shake_motion = franky.CartesianWaypointMotion(
+					[
+						franky.CartesianWaypoint(franky.CartesianState(displaced_position, velocity=franky.Twist([0.0, 0.0, 0.0]))),
+						franky.CartesianWaypoint(ee_pose)
+					],
+					relative_dynamics_factor=franky.RelativeDynamicsFactor(self.shake_dynamics_factor[0], self.shake_dynamics_factor[1], self.shake_dynamics_factor[2])
+				)
+				if self.robot.recover_from_errors():
+					continue
+					# recovery = franky.CartesianMotion(ee_pose, relative_dynamics_factor=0.05)
+					# self.robot.move(recovery)
+				else:
+					raise ShakeException('Failed to recover')
 
 
 class PandaPyRobot(Robot):

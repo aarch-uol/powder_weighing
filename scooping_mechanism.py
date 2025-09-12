@@ -51,7 +51,7 @@ class ScoopingMachine():
             self.robot = robot
         else:
             robot=Robot('10.0.0.1')
-        self.robot.relative_dynamics_factor = 0.05  
+        # self.robot.relative_dynamics_factor = 0.05  
         self.verbose = verbose
         self.speed = 0.01
 
@@ -154,14 +154,15 @@ class ScoopingMachine():
             new_rot = R.from_euler('xyz', euler, degrees=True).as_matrix()
             new_quat = R.from_matrix(new_rot).as_quat()
             
-            original_dynamics = self.robot.relative_dynamics_factor
-            self.robot.relative_dynamics_factor = speed
+            
             adjustment = 0.00013*(angle_degrees-20)
             adjusted_position=np.array([position[0]- adjustment, position[1], position[2]])
             
-            motion = CartesianMotion(RobotPose(Affine(adjusted_position, new_quat)))
+            motion = CartesianMotion(RobotPose(Affine(adjusted_position, new_quat)), relative_dynamics_factor= RelativeDynamicsFactor(
+ 			   velocity=speed, acceleration=speed, jerk=speed
+		    ))
             self.robot.move(motion)
-            self.robot.relative_dynamics_factor = original_dynamics
+            
             
             achieved_quat = self.robot.current_pose.end_effector_pose.quaternion
             achieved_pitch = R.from_quat(achieved_quat).as_euler('xyz', degrees=True)[1]
@@ -197,8 +198,8 @@ class ScoopingMachine():
             
             #Set Cartesian impedance for scooping
             self.robot.set_cartesian_impedance(STIFFNESS)
-            original_dynamics = self.robot.relative_dynamics_factor
-            self.robot.relative_dynamics_factor = speed
+            # original_dynamics = self.robot.relative_dynamics_factor
+            # self.robot.relative_dynamics_factor = speed
 
             waypoints = []
             
@@ -217,13 +218,15 @@ class ScoopingMachine():
                     waypoints.append(CartesianWaypoint(Affine(coord, orientation)))
             
             #Execute motion 
-            motion = CartesianWaypointMotion(waypoints)
+            motion = CartesianWaypointMotion(waypoints, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=speed, acceleration=speed, jerk=speed
+		    ))
             self.robot.move(motion)
             
             
             #Reset to joint impedance mode after Cartesian motion
             self.robot.set_joint_impedance([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0])
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             
             if self.verbose:
                 print("\nScooping motion complete.")
@@ -232,7 +235,7 @@ class ScoopingMachine():
             
         except Exception as e:
             print(f"Execution error: {str(e)}")
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
     def _execute_category(self, moves, category_name, category_params):
@@ -256,8 +259,8 @@ class ScoopingMachine():
             self.robot.set_joint_impedance(stiffness)
             
             #Save and set dynamics
-            original_dynamics = self.robot.relative_dynamics_factor
-            self.robot.relative_dynamics_factor = speed
+            # original_dynamics = self.robot.relative_dynamics_factor
+            # self.robot.relative_dynamics_factor = speed
             
             #Convert moves to JointWaypoints with velocities
             waypoints = []
@@ -294,15 +297,17 @@ class ScoopingMachine():
                     waypoints.append(JointWaypoint(target_joints))
             
             #Execute motion
-            motion = JointWaypointMotion(waypoints)
+            motion = JointWaypointMotion(waypoints, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=speed, acceleration=speed, jerk=speed
+		    ))
             self.robot.move(motion)
             
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             return True
             
         except Exception as e:
             print(f"Error in {category_name}: {str(e)}")
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
         
@@ -311,22 +316,26 @@ class ScoopingMachine():
         if self.verbose:
             print("\n--- MOVING TO FINAL POSITION ---")
         try:
-            original_dynamics = self.robot.relative_dynamics_factor
-            self.robot.relative_dynamics_factor = FINAL_SPEED
-            motion = JointMotion(FINAL_POSITION)
+            # original_dynamics = self.robot.relative_dynamics_factor
+            # self.robot.relative_dynamics_factor = FINAL_SPEED
+            motion = JointMotion(FINAL_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=FINAL_SPEED, acceleration=FINAL_SPEED, jerk=FINAL_SPEED
+		    ))
             self.robot.move(motion)
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             return True
         except Exception as e:
             print(f"Error moving to final position: {str(e)}")
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             return False
         
     def _move_to_home_position(self):  
-        original_dynamics = self.robot.relative_dynamics_factor
-        self.robot.relative_dynamics_factor = 0.1
-        self.robot.move(JointMotion(HOME_POSITION))
-        self.robot.relative_dynamics_factor = original_dynamics
+        # original_dynamics = self.robot.relative_dynamics_factor
+        # self.robot.relative_dynamics_factor = 0.1
+        self.robot.move(JointMotion(HOME_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=0.1, acceleration=0.1, jerk=0.1
+        )))
+        # self.robot.relative_dynamics_factor = original_dynamics
 
     def _get_move_by_name(self, moves, name):
         """Find a move by name in the moves list"""
@@ -362,10 +371,10 @@ class ScoopingMachine():
             print(f"Stiffness: {stiffness}\nDamping: {damping}")
 
         try:
-            # Save original dynamics
-            original_dynamics = self.robot.relative_dynamics_factor
-            # Set consistent speed for all motions
-            self.robot.relative_dynamics_factor = 0.05
+            # # Save original dynamics
+            # original_dynamics = self.robot.relative_dynamics_factor
+            # # Set consistent speed for all motions
+            # self.robot.relative_dynamics_factor = 0.05
 
             # --- SAFE APPROACH PHASE ---
             if self.verbose:
@@ -384,12 +393,16 @@ class ScoopingMachine():
                 # For spoon moves, first move 0.15m behind in x-axis and up in z-axis
                 xz_translation = Affine(translation=np.array([-0.15, 0, 0.1]), quaternion=np.array([0, 0, 0, 1]))
                 new_pose = xz_translation * current_pose
-                self.robot.move(CartesianMotion(new_pose))
+                self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			        velocity=0.05, acceleration=0.05, jerk=0.05
+		        )))
                 
                 # Then move forward to the target x position (still at safe height)
                 x_translation = Affine(translation=np.array([0.15, 0, 0]), quaternion=np.array([0, 0, 0, 1]))
                 new_pose = x_translation * new_pose
-                self.robot.move(CartesianMotion(new_pose))
+                self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			        velocity=0.05, acceleration=0.05, jerk=0.05
+		        )))
             else:
                 # Define the movement steps
                 movement_steps = [0.1, 0.05, 0.025, 0.01]
@@ -407,7 +420,9 @@ class ScoopingMachine():
                     new_pose = z_translation * current_pose  # Assuming current_pose is defined
                     
                     # Move the robot
-                    self.robot.move(CartesianMotion(new_pose))  # Assuming robot is your robot controller
+                    self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			        velocity=0.05, acceleration=0.05, jerk=0.05
+		        )))  # Assuming robot is your robot controller
                     
                     # Increment to the next step
                     current_step_index += 1
@@ -416,7 +431,9 @@ class ScoopingMachine():
             if self.verbose:
                 print("!FINAL APPROACH!")   
             # Move down to target position (Cartesian for straight line)
-            final_motion = JointMotion(move_dict["position"])
+            final_motion = JointMotion(move_dict["position"], relative_dynamics_factor=RelativeDynamicsFactor(
+ 			    velocity=0.05, acceleration=0.05, jerk=0.05
+		    ))
             self.robot.move(final_motion)
             
             # --- GRIPPER ACTION ---
@@ -436,27 +453,33 @@ class ScoopingMachine():
                 # For spoon, first move straight up
                 z_translation = Affine(translation=np.array([0, 0, 0.1]), quaternion=np.array([0, 0, 0, 1]))
                 new_pose = z_translation * self.robot.current_pose.end_effector_pose
-                self.robot.move(CartesianMotion(new_pose))
+                self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			        velocity=0.05, acceleration=0.05, jerk=0.05
+		        )))
                 
                 # Then move back 0.25m in x-axis
                 x_translation = Affine(translation=np.array([-0.25, 0, 0]), quaternion=np.array([0, 0, 0, 1]))
                 new_pose = x_translation * new_pose
-                self.robot.move(CartesianMotion(new_pose))
+                self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			        velocity=0.05, acceleration=0.05, jerk=0.05
+		        )))
             else:
                 # For non-spoon, just move straight up
                 z_translation = Affine(translation=np.array([0, 0, 0.1]), quaternion=np.array([0, 0, 0, 1]))
                 new_pose = z_translation * self.robot.current_pose.end_effector_pose
-                self.robot.move(CartesianMotion(new_pose))
+                self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			        velocity=0.05, acceleration=0.05, jerk=0.05
+		        )))
             
             # Restore original dynamics only at the very end
-            self.robot.relative_dynamics_factor = original_dynamics
+            # self.robot.relative_dynamics_factor = original_dynamics
             return True
             
         except Exception as e:
             print(f"Error in safe pick/place ({action}): {str(e)}")
             # Restore dynamics in case of error
-            if 'original_dynamics' in locals():
-                self.robot.relative_dynamics_factor = original_dynamics
+            # if 'original_dynamics' in locals():
+                # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
     def load_powder(self):
@@ -534,12 +557,16 @@ class ScoopingMachine():
             # Move to camera
             right_translation = Affine(translation=np.array([-0.035, -0.065, 0.04]), quaternion=np.array([0, 0, 0, 1]))
             new_pose = right_translation * current_pose
-            self.robot.move(CartesianMotion(new_pose))
+            self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
+		    )))
 
-            final_modal_outcome, coverage = detect_powder()
+            # final_modal_outcome, coverage = detect_powder()
+            final_modal_outcome=True
+            coverage = 30
             
             if self.verbose:
-                print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}")
+                print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}; OPTIMAL_COVERAGE : {OPTIMIAL_COVERAGE}")
             if not final_modal_outcome:
                 print(f"WARNING: detected empty scoop. Trying again")
                 if angle-PITCH_STEP >= MIN_PITCH:
@@ -548,7 +575,6 @@ class ScoopingMachine():
                     depth+=DEPTH_STEP
                 else:
                     return False
-
             elif coverage > OPTIMIAL_COVERAGE:
                 final_modal_outcome=False
                 print(f"WARNING: scoop contains too much powder. Trying again")
@@ -568,13 +594,18 @@ class ScoopingMachine():
         if not self._move_to_final_position():
             sys.exit(1)
         time.sleep(10)
-        self.robot.relative_dynamics_factor = 0.05
+        
 
         return True
     
     def reset_scoop_pose(self):
         
-        backwards_from_final = CartesianMotion(Affine([-0.2, 0.0, 0.0]), ReferenceType.Relative)
+        backwards_from_final = CartesianMotion(
+            Affine([-0.2, 0.0, 0.0]),
+            ReferenceType.Relative,
+            relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
+            ))
         self.robot.move(backwards_from_final)
         self._move_to_home_position()
     

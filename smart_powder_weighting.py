@@ -128,6 +128,7 @@ def main():
     parser.add_argument("directory", help="Output directory name")
     parser.add_argument("model", help="Model to be used")
     parser.add_argument("powder", help="Name of powder to be used")
+    parser.add_argument("--samples",type=int, help="Number of samples to be measured", default=1)
     args = parser.parse_args()
 
 
@@ -184,12 +185,12 @@ def main():
         if skip == True:    
             continue
         
-        with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'w') as file:
+        with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'a') as file:
             csv_writer = csv.writer(file, delimiter = ' ', )
             csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
             means =[]
             i=0
-            while i<5:
+            while i<args.samples:
 
                 if not scooper.scoop():
                     input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
