@@ -5,6 +5,11 @@ import os
 import csv
 import sys
 
+
+SLOW_SHAKE=[0.25, 0.14, 0.09]
+FAST_SHAKE=[0.4, 0.22, 0.35]
+
+
 class UserDefinedSettings(object):
 
     def __init__(self, BASE_RL_METHOD='SAC'):
@@ -139,7 +144,7 @@ def main():
     agent = SACAgent(env, settings)
     
     if env.env.library=='franky':
-        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True, robot=env.env.robot.robot)
+        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=False, robot=env.env.robot.robot)
     else:
         scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True)
 
@@ -191,19 +196,31 @@ def main():
             means =[]
             i=0
             while i<args.samples:
-
-                if not scooper.scoop():
+                scoop_success, scoop_angle = scooper.scoop()
+                if not scoop_success:
                     input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
                     continue
                 # try:
+
+                # for dual speed (not sure if necessary) 
+                # if scoop_angle <40: 
+                #     env.env.robot.set_shake_dynamics_factor(SLOW_SHAKE)
+                # else:
+                #      env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
+                # next line is only for baseline experiments. Adjust speed accordingly
+                
+                env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
+                print(env.env.robot.shake_dynamics_factor)
+                
+                
                 agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
                 # except:
                 #     print("Failed to load agent")
                 #     continue
                 i+=1 
                 final_weight = env.env.get_observation()[0]*2
-                print(f'Experiment results are: {[final_weight, target, abs(target-final_weight)]}')
-                csv_writer.writerow([final_weight, target, abs(target-final_weight)])
+                print(f'Experiment results are: {[final_weight, target, abs(target-final_weight), scoop_angle]}')
+                csv_writer.writerow([final_weight, target, abs(target-final_weight), scoop_angle])
                 file.flush()
                 means.append(abs(target-final_weight)) 
                 scooper.reset_scoop_pose()

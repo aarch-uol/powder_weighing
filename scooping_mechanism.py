@@ -32,15 +32,15 @@ HOME_CARTESIAN = "(t=[0.456037 -0.0117829 0.495123], q=[0.974623 0.000202117 -0.
 PLOT_WINDOW_SECONDS = 60
 UPDATE_FREQUENCY_HZ = 100  #Reduced frequency to avoid overloading
 
-MIN_DEPTH=0.013
-MAX_DEPTH=0.017
+MIN_DEPTH=0.012
+MAX_DEPTH=0.018
 DEPTH_STEP=0.001
 
 MIN_PITCH=20
 MAX_PITCH=60
 PITCH_STEP=5
 
-OPTIMIAL_COVERAGE = 35
+OPTIMIAL_COVERAGE = 30
 
 class ScoopingMachine():
 
@@ -55,6 +55,7 @@ class ScoopingMachine():
         self.verbose = verbose
         self.speed = 0.01
 
+        # self.best_angle=40
         # Ask for container and spoon names
         container_name = input("Enter the name of the container: ").strip()
         spoon_name = input("Enter the name of the spoon: ").strip()
@@ -561,9 +562,10 @@ class ScoopingMachine():
  			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
 		    )))
 
-            # final_modal_outcome, coverage = detect_powder()
-            final_modal_outcome=True
-            coverage = 30
+            final_modal_outcome, coverage = detect_powder()
+            print(coverage)
+            # final_modal_outcome=True
+            # coverage = 30
             
             if self.verbose:
                 print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}; OPTIMAL_COVERAGE : {OPTIMIAL_COVERAGE}")
@@ -574,7 +576,7 @@ class ScoopingMachine():
                 elif(depth+DEPTH_STEP)<= MAX_DEPTH:
                     depth+=DEPTH_STEP
                 else:
-                    return False
+                    return False, angle
             elif coverage > OPTIMIAL_COVERAGE:
                 final_modal_outcome=False
                 print(f"WARNING: scoop contains too much powder. Trying again")
@@ -583,7 +585,7 @@ class ScoopingMachine():
                 elif(depth-DEPTH_STEP)>= MIN_DEPTH:
                     depth-=DEPTH_STEP
                 else:
-                    return False
+                    return False, angle
             #final_modal_outcome = True   
 
             print(final_modal_outcome)         
@@ -595,8 +597,8 @@ class ScoopingMachine():
             sys.exit(1)
         time.sleep(10)
         
-
-        return True
+        self.best_angle=angle
+        return True, angle
     
     def reset_scoop_pose(self):
         
@@ -606,7 +608,16 @@ class ScoopingMachine():
             relative_dynamics_factor=RelativeDynamicsFactor(
  			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
             ))
-        self.robot.move(backwards_from_final)
+        try:
+            self.robot.move(backwards_from_final)
+        except: 
+            if self.robot.recover_from_errors():
+                backwards_from_final = CartesianMotion(
+                    Affine([-0.05, 0.0, 0.0]),
+                    ReferenceType.Relative,
+                    relative_dynamics_factor=RelativeDynamicsFactor(
+                        velocity=0.05, acceleration=0.05, jerk=0.05
+            ))
         self._move_to_home_position()
     
 

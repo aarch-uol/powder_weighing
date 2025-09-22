@@ -63,11 +63,11 @@ class FrankyRobot(Robot):
 		)
 		self.pitch_max = 45*np.pi/180
 		self.pitch_min = -0
-		# self.shake_dynamics_factor=[0.2, 0.12, 0.05]
-		self.shake_dynamics_factor=np.array([0.4, 0.22, 0.35])
+		self.shake_dynamics_factor=[0.25, 0.13, 0.05]
+		# self.shake_dynamics_factor=np.array([0.4, 0.22, 0.35])
 
 	def set_shake_dynamics_factor(self, dynamics_factor: list[float]):
-		self.shake_dynamics_factor=dynamics_factor
+		self.shake_dynamics_factor=np.array(dynamics_factor)
 
 	def reset(self):
 		home_pos = [0.03241183, 0.02479055, -0.03119808, -2.4527532,  -0.01299625,  2.32665869, 0.78508846]
@@ -104,13 +104,15 @@ class FrankyRobot(Robot):
 		current_quat = end_effector_pose.quaternion
 
 		# x axis correction for inclination
-		print(incline_action)
+		print(incline_action, new_pitch)
 		if incline_angle<0:
 			if new_pitch > 15*np.pi/180:
-				correction = franky.Affine(translation=np.array([-0.002, 0, 0.001]))
+				print("correction used")
+				correction = franky.Affine(translation=np.array([-0.0015, 0, 0.0018]))
 				position = (end_effector_pose * correction).translation
 		else:
-			correction = franky.Affine(translation=np.array([-0.00, 0, -0.0005]))
+			print("Declining correction")
+			correction = franky.Affine(translation=np.array([-0.00, 0, -0.0015]))
 			position = (end_effector_pose * correction).translation
 		# print(position, type(position))
 			
@@ -175,20 +177,9 @@ class FrankyRobot(Robot):
 						print(self.shake_dynamics_factor)
 				else:
 					raise ShakeException('Failed to do forwards movement')
-
-				shake_motion = franky.CartesianWaypointMotion(
-					[
-						franky.CartesianWaypoint(franky.CartesianState(displaced_position, velocity=franky.Twist([0.0, 0.0, 0.0]))),
-						franky.CartesianWaypoint(ee_pose)
-					],
-					relative_dynamics_factor=franky.RelativeDynamicsFactor(self.shake_dynamics_factor[0], self.shake_dynamics_factor[1], self.shake_dynamics_factor[2])
-				)
 				if self.robot.recover_from_errors():
 					continue
-					# recovery = franky.CartesianMotion(ee_pose, relative_dynamics_factor=0.05)
-					# self.robot.move(recovery)
-				else:
-					raise ShakeException('Failed to recover')
+				raise ShakeException('Failed to recover')
 
 
 class PandaPyRobot(Robot):

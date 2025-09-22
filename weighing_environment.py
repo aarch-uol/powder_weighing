@@ -55,7 +55,7 @@ class WeighingEnv:
 	def step(self, action):
 		
 		# print(f"Received action is {action}")
-
+		step_complete=True
 		# if there's an incline exception try again
 		counter =0
 		while True:
@@ -72,9 +72,8 @@ class WeighingEnv:
 				self.robot.shake(action[0])
 				break
 			except ShakeException:
-				counter+=1
-				if counter==3:
-					raise Exception('Environment needs to be reset')
+				# mark the step as if it had failed for it to be repeated
+				step_complete = False
 			except ReturnException:
 				raise Exception("Shake return failed. Environment needs to be reset")
 		# sleep a bit for the scale to chill
@@ -91,7 +90,8 @@ class WeighingEnv:
 		# early stop on 1mg approach
 		elif(np.abs(observation[0]*2-observation[2]*2)<1):
 			self.finished = True 	
-		self.step_no+=1
+		if step_complete:
+			self.step_no+=1
 		
 		print(f'Step observation is{observation}, reward:{reward}')
 		return observation, reward, self.finished, observation[0] 
