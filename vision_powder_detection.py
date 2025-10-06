@@ -8,7 +8,7 @@ from collections import deque
 
 # --- Configuration ---
 # Fixed Regions of Interest (ROIs) for the container and spoon.
-CONTAINER_ROI = (320, 320, 50, 35)
+CONTAINER_ROI = (340, 320, 50, 35)
 SPOON_ROI = (175, 220, 90, 55)
 
 # Color matching threshold: Maximum Euclidean distance for two colors to be considered a match.

@@ -50,12 +50,15 @@ class WeighingEnv:
 		# print(np.rad2deg(pitch))
 		#  the original work had the weights devided by 2 in the observation space. So do MOST of our agennts (see notes)
 		# return np.array([0,pitch*-5,0])
-		return np.array([self.scale.get_weight()/2,pitch*-5,self.target_weight/2])
+		current_weight = self.scale.get_weight()
+		while current_weight is None:
+			current_weight = self.scale.get_weight()
+		return np.array([current_weight/2,pitch*-5,self.target_weight/2])
 
 	def step(self, action):
 		
 		# print(f"Received action is {action}")
-		step_complete=True
+		
 		# if there's an incline exception try again
 		counter =0
 		while True:
@@ -73,8 +76,7 @@ class WeighingEnv:
 				break
 			except ShakeException:
 				# mark the step as if it had failed for it to be repeated
-				step_complete = False
-			except ReturnException:
+				print("The step was incomplete")
 				raise Exception("Shake return failed. Environment needs to be reset")
 		# sleep a bit for the scale to chill
 		time.sleep(2)
@@ -90,8 +92,8 @@ class WeighingEnv:
 		# early stop on 1mg approach
 		elif(np.abs(observation[0]*2-observation[2]*2)<1):
 			self.finished = True 	
-		if step_complete:
-			self.step_no+=1
+		
+		self.step_no+=1
 		
 		print(f'Step observation is{observation}, reward:{reward}')
 		return observation, reward, self.finished, observation[0] 
@@ -113,7 +115,10 @@ class WeighingEnv:
 		
 		time.sleep(1)
 	# if  isinstance(self.scale, FisherScale):
-		if abs(self.scale.get_weight() - 0)>1:
+		current_weight = self.scale.get_weight()
+		while current_weight is None:
+			current_weight = self.scale.get_weight()
+		if abs(current_weight)>1:
 			input('Manual scale reset needed. Press ENTER to continue')
 			self.scale.reset()
 		# time.sleep(5)

@@ -23,6 +23,7 @@ class Scale(ABC):
 class SartoriusEntrisScale(Scale):
 	
 	def get_weight(self):
+		sleep(2)
 		# empty buffer
 		while self.serial_com.in_waiting > 0:
 			data = self.serial_com.readline().decode('utf-8').strip()
@@ -33,8 +34,9 @@ class SartoriusEntrisScale(Scale):
 		while self.serial_com.in_waiting<=0:
 			sleep(0.5)
 		data = self.serial_com.readline().decode('utf-8').strip()
-		data = re.search(r"[-+]?\d*\.?\d+", data).group()
-		data = float(data)
+		if data is not None:
+			data = re.search(r"[-+]?\d*\.?\d+", data).group()
+			data = float(data)
 		return data
 		
 	def beep(self):
@@ -42,6 +44,10 @@ class SartoriusEntrisScale(Scale):
 	
 	def reset(self):
 		self._weight=0
+		sleep(2)
+		# empty buffer
+		while self.serial_com.in_waiting > 0:
+			self.serial_com.readline().decode('utf-8').strip()
 		# send tar command
 		self.serial_com.write(bytearray('!T\r\n', 'ascii'))
 		sleep(2)

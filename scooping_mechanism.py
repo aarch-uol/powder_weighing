@@ -40,7 +40,7 @@ MIN_PITCH=20
 MAX_PITCH=60
 PITCH_STEP=5
 
-OPTIMIAL_COVERAGE = 30
+OPTIMIAL_COVERAGE = 28
 
 class ScoopingMachine():
 
@@ -50,7 +50,7 @@ class ScoopingMachine():
         if robot is not None:
             self.robot = robot
         else:
-            robot=Robot('10.0.0.1')
+            self.robot=Robot('10.0.0.1')
         # self.robot.relative_dynamics_factor = 0.05  
         self.verbose = verbose
         self.speed = 0.01
@@ -532,9 +532,9 @@ class ScoopingMachine():
         self._move_to_home_position()
 
 
-    def scoop(self):
+    def scoop(self, starting_angle=40, vision_check=True):
         final_modal_outcome = False #Vision scooping detection result
-        angle = 40
+        angle = starting_angle
         depth = 0.015
         length = 0.025
         while (not final_modal_outcome):
@@ -564,29 +564,31 @@ class ScoopingMachine():
 
             final_modal_outcome, coverage = detect_powder()
             print(coverage)
-            # final_modal_outcome=True
+            if not vision_check:
+                final_modal_outcome=True
             # coverage = 30
             
             if self.verbose:
                 print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}; OPTIMAL_COVERAGE : {OPTIMIAL_COVERAGE}")
-            if not final_modal_outcome:
-                print(f"WARNING: detected empty scoop. Trying again")
-                if angle-PITCH_STEP >= MIN_PITCH:
-                    angle -=PITCH_STEP
-                elif(depth+DEPTH_STEP)<= MAX_DEPTH:
-                    depth+=DEPTH_STEP
-                else:
-                    return False, angle
-            elif coverage > OPTIMIAL_COVERAGE:
-                final_modal_outcome=False
-                print(f"WARNING: scoop contains too much powder. Trying again")
-                if angle+PITCH_STEP <= MAX_PITCH:
-                    angle +=PITCH_STEP
-                elif(depth-DEPTH_STEP)>= MIN_DEPTH:
-                    depth-=DEPTH_STEP
-                else:
-                    return False, angle
-            #final_modal_outcome = True   
+            if vision_check:
+                if not final_modal_outcome:
+                    print(f"WARNING: detected empty scoop. Trying again")
+                    if angle-PITCH_STEP >= MIN_PITCH:
+                        angle -=PITCH_STEP
+                    elif(depth+DEPTH_STEP)<= MAX_DEPTH:
+                        depth+=DEPTH_STEP
+                    else:
+                        return False, angle
+                elif coverage > OPTIMIAL_COVERAGE:
+                    final_modal_outcome=False
+                    print(f"WARNING: scoop contains too much powder. Trying again")
+                    if angle+PITCH_STEP <= MAX_PITCH:
+                        angle +=PITCH_STEP
+                    elif(depth-DEPTH_STEP)>= MIN_DEPTH:
+                        depth-=DEPTH_STEP
+                    else:
+                        return False, angle
+                #final_modal_outcome = True   
 
             print(final_modal_outcome)         
 
@@ -633,7 +635,10 @@ def main():
 
     scooper.load_powder()
     scooper.pickup_spoon()
-    scooper.scoop()
+    for angle in range(20,65,5):
+        for i in range (4):
+            scooper.scoop(starting_angle=angle, vision_check=False)
+            input('Measure scooped quantity and press ENTER to continue')
     scooper.reset_scoop_pose()
     scooper.drop_spoon()
     scooper.unload_powder()

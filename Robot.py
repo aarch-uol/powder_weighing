@@ -105,15 +105,16 @@ class FrankyRobot(Robot):
 
 		# x axis correction for inclination
 		print(incline_action, new_pitch)
-		if incline_angle<0:
+		if incline_angle<-0.15:
 			if new_pitch > 15*np.pi/180:
 				print("correction used")
 				correction = franky.Affine(translation=np.array([-0.0015, 0, 0.0018]))
 				position = (end_effector_pose * correction).translation
 		else:
-			print("Declining correction")
-			correction = franky.Affine(translation=np.array([-0.00, 0, -0.0015]))
-			position = (end_effector_pose * correction).translation
+			if incline_angle>0:
+				print("Declining correction")
+				correction = franky.Affine(translation=np.array([-0.0001, 0, -0.0018]))
+				position = (end_effector_pose * correction).translation
 		# print(position, type(position))
 			
 		rot = R.from_quat(current_quat).as_matrix()
@@ -164,13 +165,13 @@ class FrankyRobot(Robot):
 		# if dynamics of movement are 1 ,1 ,1 maintains main robot ones
 		# dynamics is relative to the rest of the system
 		success = False
-		dynamics_dicount = 0
+		dynamics_dicount = 0.02
 		while not success:
 			try:
 				self.robot.move(shake_motion)
 				success=True
 			except:
-				dynamics_dicount +=0.02
+				
 				print("Failed to do shake motion")
 				if dynamics_dicount < min(self.shake_dynamics_factor):	
 						self.shake_dynamics_factor -= dynamics_dicount
@@ -178,8 +179,17 @@ class FrankyRobot(Robot):
 				else:
 					raise ShakeException('Failed to do forwards movement')
 				if self.robot.recover_from_errors():
-					continue
-				raise ShakeException('Failed to recover')
+					return_motion = franky.CartesianWaypointMotion(
+						[
+							franky.CartesianWaypoint(ee_pose),
+						],
+						# sand optimised values: 0.2, 0.12, 0.05
+						relative_dynamics_factor=franky.RelativeDynamicsFactor(0.2, 0.12, 0.05)
+					)	
+					try: 
+						self.robot.move(return_motion)
+					except:
+						raise ShakeException('Failed to recover')
 
 
 class PandaPyRobot(Robot):
