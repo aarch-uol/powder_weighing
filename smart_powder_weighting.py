@@ -134,11 +134,14 @@ def main():
     parser.add_argument("model", help="Model to be used")
     parser.add_argument("powder", help="Name of powder to be used")
     parser.add_argument("--samples",type=int, help="Number of samples to be measured", default=1)
+    parser.add_argument("--robot_ip", default='10.0.0.1', help="Enable debug mode")
+    parser.add_argument("--scale_port", default='/dev/ttyACM0', help="Scale serial port")
+    parser.add_argument("--gripper_port", default='/dev/ttyUSB0', help="Gripper serial port")
     args = parser.parse_args()
 
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM0', gripper_port='/dev/ttyUSB0')
+    env = WeighingEnv(args.robot_ip, scale_port=args.scale_port, gripper_port=args.gripper_port)
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
@@ -162,7 +165,7 @@ def main():
         'random': './models/SAC_ISAAC_POWDER_RANDOM_WEIGHING_ENVII_7_per_class_32025-03-21 10-37-53.712456',
         'dr': './models/SAC_DR_ADHESION_ISAAC_POWDER_WEIGHING_ENVII2025-03-16 22-18-29.590903',
         'reverse':'./models/SAC_ISAAC_POWDER_WEIGHING_REVERSE_ENVII_7_per_class_32025-04-02 23-50-08.863929',
-        'random_acute': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle'
+        'random_new_reward': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle'
     }
 
     model = args.model
@@ -190,7 +193,7 @@ def main():
         if skip == True:    
             continue
         
-        with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'a') as file:
+        with open(os.path.join(directory, f'experiment_{powder}_{target}mg.csv'), 'a') as file:
             csv_writer = csv.writer(file, delimiter = ' ', )
             csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
             means =[]
