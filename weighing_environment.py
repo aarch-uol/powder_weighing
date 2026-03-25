@@ -1,7 +1,7 @@
 import numpy as np
 import time
-from Scale import SartoriusEntrisScale, FisherScale
-from Robot import *
+from scale import SartoriusEntrisScale, FisherScale
+from robot import *
 
 		
 
@@ -26,8 +26,6 @@ class WeighingEnv:
 		self.TOTAL_STEPS=10
 		self.step_no=0
 		self.finished=False
-		# self.robot.reset()
-		# self.robot.load_tool()
 		self.target_weight = np.random.randint(5, 15)
 		self.library= library
 
@@ -47,9 +45,8 @@ class WeighingEnv:
 	def get_observation(self):
 		# adjust the pitch angle to relfect the angle seen in the simulator
 		pitch = self.robot.get_pitch() - np.pi/2
-		# print(np.rad2deg(pitch))
+		
 		#  the original work had the weights devided by 2 in the observation space. So do MOST of our agennts (see notes)
-		# return np.array([0,pitch*-5,0])
 		current_weight = self.scale.get_weight()
 		while current_weight is None:
 			current_weight = self.scale.get_weight()
@@ -109,19 +106,15 @@ class WeighingEnv:
 			self.target_weight = np.random.randint(5, 15)
 		
 		time.sleep(3)
-		# self.robot.load_tool()
-		# self.__shake_surplus()
 		self.scale.reset()
 		
 		time.sleep(1)
-	# if  isinstance(self.scale, FisherScale):
 		current_weight = self.scale.get_weight()
 		while current_weight is None:
 			current_weight = self.scale.get_weight()
 		if abs(current_weight)>1:
 			input('Manual scale reset needed. Press ENTER to continue')
 			self.scale.reset()
-		# time.sleep(5)
 		self.step_no=0
 		self.finished=False
 		print('MSG: Environment reset successfully')

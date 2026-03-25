@@ -1,6 +1,6 @@
-import pyRobotiqGripper
+from pyrobotiqgripper import RobotiqGripper
 import time
-gripper = pyRobotiqGripper.RobotiqGripper()		
+gripper = RobotiqGripper()		
 gripper.activate()
 
 gripper.open()

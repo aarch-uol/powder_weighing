@@ -120,7 +120,6 @@ def detect_powder():
                 if CONTAINER_ROI[2] > 0 and CONTAINER_ROI[3] > 0:
                     container_avg_color_hsv = get_average_color(hsv_image, CONTAINER_ROI)
                     last_container_sample_time = current_time
-                    #print(f"Container sampled HSV color: {container_avg_color_hsv}")
                 else:
                     cv2.putText(color_image, "Invalid CONTAINER ROI dimensions.", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
@@ -180,7 +179,7 @@ def detect_powder():
                     cv2.putText(color_image, f"Container LAB Avg: {container_avg_color_hsv}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                     status_text = f"Spoon Filled: {percentage_filled:.2f}% ({'EMPTY' if is_empty else 'SUCCESSFUL SCOOP'})"
                     cv2.putText(color_image, status_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                    # print(f'Spoon Filled: {percentage_filled:.2f}%')
+                    
                     
                 else:
                     cv2.putText(color_image, "Spoon ROI image is empty after crop.", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -215,8 +214,6 @@ def detect_powder():
 
                 # If a clear majority exists, close the program
                 if final_modal_outcome is not None:
-                    # print(f"Overall Outcome: {final_modal_outcome}")
-                    # print(f"({true_count} 'True' results and {false_count} 'False' results out of {CONSECUTIVE_STATUS_TO_CLOSE} collected).")
                     avg_coverage=avg_coverage/CONSECUTIVE_STATUS_TO_CLOSE
                     break
 

@@ -17,7 +17,6 @@ class UserDefinedSettings(object):
         self.DEVICE = torch.device("cuda:0")
         self.ENVIRONMENT_NAME = 'powder_weighing_envII_small'
         dir_name = 'train'
-        # self.HOST_NAME = socket.gethostname()
         self.LOG_DIRECTORY = os.path.join(os.environ['HOME'], 'logs', self.ENVIRONMENT_NAME, BASE_RL_METHOD, dir_name)
 
         self.LSTM_FLAG = True
@@ -89,15 +88,12 @@ class InterfaceEnvironment():
    
     def reset(self, target_weight=None):
         state = self.env.reset(target_weight=target_weight)
-        # print(f"state is {state[:, 2:5].cpu().numpy().reshape(-1)}")
         return state
 
    
     def step(self, action, get_task_achievement=False):
-        # print(action)
-        # print(self.env)
         next_state, reward, done, task_achievement = self.env.step(action)
-        # print(reward)
+        
         if get_task_achievement:
             return next_state, reward, done, np.zeros(5), task_achievement
         return next_state, reward, done, np.zeros(5)
@@ -123,7 +119,7 @@ class InterfaceEnvironment():
 
 from SAC.SACAgent import SACAgent
 import argparse
-from scooping_mechanism import ScoopingMachine
+from scooping_machine import ScoopingMachine
 
 def main():
     
@@ -149,9 +145,7 @@ def main():
         scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True)
 
     
-    
-    # powders = ['sand', 'salt', 'sugar', 'flour']
-    
+           
     directory = args.directory
 
     if not os.path.exists(directory):
@@ -179,7 +173,7 @@ def main():
     scooper.pickup_spoon()
     
 
-    for target in range(10, 21, 5):
+    for target in range(10, 11, 5):
         skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
         while skip.strip().lower() != 'n':
             if skip.strip().lower() == 'y':
@@ -204,7 +198,7 @@ def main():
                 if not scoop_success:
                     input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
                     continue
-                # try:
+                
 
                 # for dual speed (not sure if necessary) 
                 print(scoop_angle)
@@ -214,13 +208,11 @@ def main():
                      env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
                 # next line is only for baseline experiments. Adjust speed accordingly
                 
-                # env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
                 print(env.env.robot.shake_dynamics_factor)
                 
                 try:
                     agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
                 except:
-                #     print("Failed to load agent")
                     continue
                 i+=1 
                 final_weight = env.env.get_observation()[0]*2

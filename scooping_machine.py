@@ -55,7 +55,6 @@ class ScoopingMachine():
         self.verbose = verbose
         self.speed = 0.01
 
-        # self.best_angle=40
         # Ask for container and spoon names
         container_name = input("Enter the name of the container: ").strip()
         spoon_name = input("Enter the name of the spoon: ").strip()
@@ -199,9 +198,7 @@ class ScoopingMachine():
             
             #Set Cartesian impedance for scooping
             self.robot.set_cartesian_impedance(STIFFNESS)
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # self.robot.relative_dynamics_factor = speed
-
+            
             waypoints = []
             
             #Create waypoints with velocity profiles
@@ -227,7 +224,7 @@ class ScoopingMachine():
             
             #Reset to joint impedance mode after Cartesian motion
             self.robot.set_joint_impedance([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0])
-            # self.robot.relative_dynamics_factor = original_dynamics
+            
             
             if self.verbose:
                 print("\nScooping motion complete.")
@@ -236,7 +233,6 @@ class ScoopingMachine():
             
         except Exception as e:
             print(f"Execution error: {str(e)}")
-            # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
     def _execute_category(self, moves, category_name, category_params):
@@ -259,9 +255,6 @@ class ScoopingMachine():
             #Ensure we're in joint impedance mode
             self.robot.set_joint_impedance(stiffness)
             
-            #Save and set dynamics
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # self.robot.relative_dynamics_factor = speed
             
             #Convert moves to JointWaypoints with velocities
             waypoints = []
@@ -303,12 +296,11 @@ class ScoopingMachine():
 		    ))
             self.robot.move(motion)
             
-            # self.robot.relative_dynamics_factor = original_dynamics
+            
             return True
             
         except Exception as e:
             print(f"Error in {category_name}: {str(e)}")
-            # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
         
@@ -317,26 +309,20 @@ class ScoopingMachine():
         if self.verbose:
             print("\n--- MOVING TO FINAL POSITION ---")
         try:
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # self.robot.relative_dynamics_factor = FINAL_SPEED
             motion = JointMotion(FINAL_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
  			   velocity=FINAL_SPEED, acceleration=FINAL_SPEED, jerk=FINAL_SPEED
 		    ))
             self.robot.move(motion)
-            # self.robot.relative_dynamics_factor = original_dynamics
             return True
         except Exception as e:
             print(f"Error moving to final position: {str(e)}")
-            # self.robot.relative_dynamics_factor = original_dynamics
             return False
         
     def _move_to_home_position(self):  
-        # original_dynamics = self.robot.relative_dynamics_factor
-        # self.robot.relative_dynamics_factor = 0.1
         self.robot.move(JointMotion(HOME_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
  			   velocity=0.1, acceleration=0.1, jerk=0.1
         )))
-        # self.robot.relative_dynamics_factor = original_dynamics
+        
 
     def _get_move_by_name(self, moves, name):
         """Find a move by name in the moves list"""
@@ -372,11 +358,7 @@ class ScoopingMachine():
             print(f"Stiffness: {stiffness}\nDamping: {damping}")
 
         try:
-            # # Save original dynamics
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # # Set consistent speed for all motions
-            # self.robot.relative_dynamics_factor = 0.05
-
+          
             # --- SAFE APPROACH PHASE ---
             if self.verbose:
                 print("!SAFE APPROACH!")
@@ -473,14 +455,10 @@ class ScoopingMachine():
 		        )))
             
             # Restore original dynamics only at the very end
-            # self.robot.relative_dynamics_factor = original_dynamics
             return True
             
         except Exception as e:
             print(f"Error in safe pick/place ({action}): {str(e)}")
-            # Restore dynamics in case of error
-            # if 'original_dynamics' in locals():
-                # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
     def load_powder(self):
@@ -532,11 +510,11 @@ class ScoopingMachine():
         self._move_to_home_position()
 
 
-    def scoop(self, starting_angle=40, vision_check=True):
+    def scoop(self, starting_angle=40,length=0.025, vision_check=True):
         final_modal_outcome = False #Vision scooping detection result
         angle = starting_angle
         depth = 0.015
-        length = 0.025
+        length = length
         while (not final_modal_outcome):
 
             print(f"\n=== EXECUTING SCOOPING SEQUENCE : DEPTH={depth} LENGTH={length} PITCH={angle} ===")
@@ -561,8 +539,9 @@ class ScoopingMachine():
             self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
  			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
 		    )))
-
-            final_modal_outcome, coverage = detect_powder()
+            coverage=0
+            if vision_check:
+                final_modal_outcome, coverage = detect_powder()
             print(coverage)
             if not vision_check:
                 final_modal_outcome=True
@@ -588,7 +567,7 @@ class ScoopingMachine():
                         depth-=DEPTH_STEP
                     else:
                         return False, angle
-                #final_modal_outcome = True   
+                
 
             print(final_modal_outcome)         
 
@@ -635,9 +614,10 @@ def main():
 
     scooper.load_powder()
     scooper.pickup_spoon()
-    for angle in range(20,65,5):
-        for i in range (4):
-            scooper.scoop(starting_angle=angle, vision_check=False)
+    for  length in np.arange(0.025, 0.03, 0.002):
+        print(length)
+        for i in range (5):
+            scooper.scoop(starting_angle=40,length=length, vision_check=False)
             input('Measure scooped quantity and press ENTER to continue')
     scooper.reset_scoop_pose()
     scooper.drop_spoon()
