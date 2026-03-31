@@ -173,7 +173,7 @@ def main():
         'random': './models/SAC_ISAAC_POWDER_RANDOM_WEIGHING_ENVII_7_per_class_32025-03-21 10-37-53.712456',
         'dr': './models/SAC_DR_ADHESION_ISAAC_POWDER_WEIGHING_ENVII2025-03-16 22-18-29.590903',
         'reverse':'./models/SAC_ISAAC_POWDER_WEIGHING_REVERSE_ENVII_7_per_class_32025-04-02 23-50-08.863929',
-        'random_acute': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle'
+        'random_new_reward': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle'
     }
 
     model = args.model
@@ -201,7 +201,7 @@ def main():
         if skip == True:    
             continue
         
-        with open(os.path.join(directory, f'experiment_{powder}_{target}g.csv'), 'a') as file:
+        with open(os.path.join(directory, f'experiment_{powder}_{target}mg.csv'), 'a') as file:
             csv_writer = csv.writer(file, delimiter = ' ', )
             csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
             means =[]
