@@ -145,7 +145,7 @@ def main():
     parser.add_argument("powder", help="Name of powder to be used")
     parser.add_argument("--samples",type=int, help="Number of samples to be measured", default=1)
     parser.add_argument("--config", help="Path to configuration file", default="config.json")
-    parser.add_argument("--no_vision", type=bool, help="Whether to use vision for the experiment", default=False)
+    parser.add_argument("--no_vision", action='store_true',  help="Whether to use vision for the experiment", default=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
