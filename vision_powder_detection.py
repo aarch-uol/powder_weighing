@@ -4,30 +4,64 @@ import pyrealsense2 as rs
 import numpy as np
 import cv2
 import time
+import json
+import os
 from collections import deque 
 
-# --- Configuration ---
+# --- Configuration Loader ---
+def load_config(config_filename="config.json"):
+    """Load configuration from JSON file."""
+    try:
+        # Try to find config.json in the same directory as this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, config_filename)
+        
+        with open(config_path) as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        print(f"ERROR: Failed to load configuration file '{config_filename}'\n{e}")
+        # Return default values if config loading fails
+        return {
+            "vision_detection": {
+                "container_roi": [340, 320, 50, 35],
+                "spoon_roi": [175, 220, 90, 55],
+                "color_match_threshold": 30,
+                "empty_spoon_percentage_threshold": 16,
+                "container_sample_interval": 1.0,
+                "scoop_status_update_interval": 2.0,
+                "consecutive_status_to_close": 5,
+                "debug_mode": False
+            }
+        }
+
+
+# Load configuration
+CONFIG = load_config()
+
+# --- Configuration Parameters ---
 # Fixed Regions of Interest (ROIs) for the container and spoon.
-CONTAINER_ROI = (340, 320, 50, 35)
-SPOON_ROI = (175, 220, 90, 55)
+_vision_config = CONFIG.get("vision_detection", {})
+CONTAINER_ROI = tuple(_vision_config.get("container_roi", [340, 320, 50, 35]))
+SPOON_ROI = tuple(_vision_config.get("spoon_roi", [175, 220, 90, 55]))
 
 # Color matching threshold: Maximum Euclidean distance for two colors to be considered a match.
-COLOR_MATCH_THRESHOLD = 30
+COLOR_MATCH_THRESHOLD = _vision_config.get("color_match_threshold", 30)
 
-# Percentage threshold for empty spoon  
-EMPTY_SPOON_PERCENTAGE_THRESHOLD = 15 
+# Percentage threshold for empty spoon
+EMPTY_SPOON_PERCENTAGE_THRESHOLD = _vision_config.get("empty_spoon_percentage_threshold", 16)
 
 # Time interval for sampling container color (in seconds).
-CONTAINER_SAMPLE_INTERVAL = 1.0
+CONTAINER_SAMPLE_INTERVAL = _vision_config.get("container_sample_interval", 1.0)
 
 # Time interval for updating SCOOP_STATUS output (in seconds).
-SCOOP_STATUS_UPDATE_INTERVAL = 2.0
+SCOOP_STATUS_UPDATE_INTERVAL = _vision_config.get("scoop_status_update_interval", 2.0)
 
 # Number of spaced-out SCOOP_STATUS results to collect for modal analysis before closing.
-CONSECUTIVE_STATUS_TO_CLOSE = 5
+CONSECUTIVE_STATUS_TO_CLOSE = _vision_config.get("consecutive_status_to_close", 5)
 
 # DEBUG MODE: Set to True to enable continuous camera window until 'q' is pressed
-DEBUG_MODE = False # Change this to False for normal operation
+DEBUG_MODE = _vision_config.get("debug_mode", False)
 
 # --- Helper Functions ---
 def get_average_color(image, roi):
@@ -111,6 +145,7 @@ def detect_powder():
 
             # Convert images to numpy arrays
             color_image = np.asanyarray(color_frame.get_data())
+            raw_image=color_image.copy()
             # Convert the color image to HSV for processing
             hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2LAB)
 
@@ -236,7 +271,7 @@ def detect_powder():
 
             # Display the resulting frame
             cv2.imshow('RealSense Spoon Detection', color_image)
-
+            cv2.imshow('Raw image output', raw_image)
             # Handle key presses
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

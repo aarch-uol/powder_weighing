@@ -4,11 +4,25 @@ import torch
 import os
 import csv
 import sys
-
+import json
 
 SLOW_SHAKE=[0.25, 0.15, 0.15]
 FAST_SHAKE=[0.4, 0.22, 0.35]
 
+#  --- Configuration Loader ---
+def load_config(config_filename="config.json"):
+    """Load configuration from JSON file."""
+    try:
+        # Try to find config.json in the same directory as this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, config_filename)
+        
+        with open(config_path) as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        print(f"ERROR: Failed to load configuration file '{config_filename}'\n{e}")
+        sys.exit(1)
 
 class UserDefinedSettings(object):
 
@@ -130,19 +144,22 @@ def main():
     parser.add_argument("model", help="Model to be used")
     parser.add_argument("powder", help="Name of powder to be used")
     parser.add_argument("--samples",type=int, help="Number of samples to be measured", default=1)
+    parser.add_argument("--config", help="Path to configuration file", default="config.json")
     args = parser.parse_args()
 
+    config = load_config(args.config)
+    print("Configuration loaded successfully:")
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM0', gripper_port='/dev/ttyUSB0')
+    env = WeighingEnv(config["robot_ip"], scale_port=config["scale_port"], gripper_port=config["gripper_port"])
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
     
-    if env.env.library=='franky':
-        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=False, robot=env.env.robot.robot)
+    if config["library"]=='franky':
+        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=False, robot=env.env.robot.robot, config=config)
     else:
-        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True)
+        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True, config=config)
 
     
            
