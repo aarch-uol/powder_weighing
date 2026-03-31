@@ -55,7 +55,7 @@ python smart_powder_weighting.py \
 | `powder` | string | Name of powder being tested | Required |
 | `--config` | string | Path to shared config JSON (default `./config.json`) | Required |
 | `--samples` | int | Number of samples per target weight | 1 |
-
+| `--no_vision` | bool | Turns vision system off | False
 ### Example
 
 ```bash
