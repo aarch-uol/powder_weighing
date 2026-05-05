@@ -27,7 +27,6 @@ class SartoriusEntrisScale(Scale):
 		# empty buffer
 		while self.serial_com.in_waiting > 0:
 			data = self.serial_com.readline().decode('utf-8').strip()
-		# print
 		self.serial_com.write(bytearray('!P\r\n', 'ascii'))
 		# wait for input
 		# check every half second if the measurement has been done

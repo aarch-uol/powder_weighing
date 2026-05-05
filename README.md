@@ -22,11 +22,14 @@
 
 ## Input Files
 
-### 1. Scooping Configuration (`scooping_filename`)
-JSON file containing pre- and post-scooping movement sequences with gripper and robot actions, defined in the robots Joint space. 
+### 1. Global Config (`config.json`)
+Shared JSON file with robot parameters, depth/pitch/coverage thresholds, and vision detector settings. This file is loaded by both `scooping_machine.py` and `vision_powder_detection.py` (default path: `./config.json`).
 
-### 2. Positions Configuration (`positions_filename`)
-JSON file with container, spoon, and endpoint position definitions for the robotic arm. For accuracy reasons these are defines as grasp points in the robots Joint space. 
+### 2. Scooping Configuration (`scooping_filename`)
+JSON file containing pre- and post-scooping movement sequences with gripper and robot actions, defined in the robots Joint space.
+
+### 3. Positions Configuration (`positions_filename`)
+JSON file with container, spoon, and endpoint position definitions for the robotic arm. For accuracy reasons these are defines as grasp points in the robots Joint space.
 
 ## Usage
 
@@ -37,10 +40,8 @@ python smart_powder_weighting.py \
   <output_directory> \
   <model_name> \
   <powder_name> \
+  --config <config.json> \
   [--samples N] \
-  [--robot_ip IP] \
-  [--scale_port PORT] \
-  [--gripper_port PORT]
 ```
 
 ### Arguments
@@ -52,11 +53,9 @@ python smart_powder_weighting.py \
 | `directory` | string | Directory to save experiment results | Required |
 | `model` | string | Model to use (see Models section) | Required |
 | `powder` | string | Name of powder being tested | Required |
+| `--config` | string | Path to shared config JSON (default `./config.json`) | Required |
 | `--samples` | int | Number of samples per target weight | 1 |
-| `--robot_ip` | string | Robot IP address | 10.0.0.1 |
-| `--scale_port` | string | Scale serial port | /dev/ttyACM0 |
-| `--gripper_port` | string | Gripper serial port | /dev/ttyUSB0 |
-
+| `--no_vision` | bool | Turns vision system off | False
 ### Example
 
 ```bash
@@ -67,7 +66,6 @@ python smart_powder_weighting.py \
   curriculum \
   flour \
   --samples 5 \
-  --robot_ip 10.0.0.1
 ```
 
 ## Available Models
@@ -134,10 +132,10 @@ ls ./models/
 ```
 
 ### Robot Connection Issues
-- Verify robot IP address (default: 10.0.0.1)
+- Verify robot IP address 
 - Check network connectivity:
 ```bash
-ping 10.0.0.1
+ping <robot_ip>
 ```
 - Ensure Franka desk is in automatic mode
 
@@ -185,3 +183,17 @@ Results CSV files can be processed for analysis:
 - Shake dynamics are adjusted dynamically based on scoop angle detection
 - All weights are measured in miligrams
 - Target weights tested: 10mg, 15mg, 20mg
+
+## Cite
+The used DRL models are taken from this work: 
+```
+@misc{radulov2025flipflowabilityinformedpowderweighing,
+      title={FLIP: Flowability-Informed Powder Weighing}, 
+      author={Nikola Radulov and Alex Wright and Thomas Little and Andrew I. Cooper and Gabriella Pizzuto},
+      year={2025},
+      eprint={2506.03896},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2506.03896}, 
+}
+```

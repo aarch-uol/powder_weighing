@@ -4,11 +4,25 @@ import torch
 import os
 import csv
 import sys
-
+import json
 
 SLOW_SHAKE=[0.25, 0.15, 0.15]
 FAST_SHAKE=[0.4, 0.22, 0.35]
 
+#  --- Configuration Loader ---
+def load_config(config_filename="config.json"):
+    """Load configuration from JSON file."""
+    try:
+        # Try to find config.json in the same directory as this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, config_filename)
+        
+        with open(config_path) as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        print(f"ERROR: Failed to load configuration file '{config_filename}'\n{e}")
+        sys.exit(1)
 
 class UserDefinedSettings(object):
 
@@ -17,7 +31,6 @@ class UserDefinedSettings(object):
         self.DEVICE = torch.device("cuda:0")
         self.ENVIRONMENT_NAME = 'powder_weighing_envII_small'
         dir_name = 'train'
-        # self.HOST_NAME = socket.gethostname()
         self.LOG_DIRECTORY = os.path.join(os.environ['HOME'], 'logs', self.ENVIRONMENT_NAME, BASE_RL_METHOD, dir_name)
 
         self.LSTM_FLAG = True
@@ -89,15 +102,12 @@ class InterfaceEnvironment():
    
     def reset(self, target_weight=None):
         state = self.env.reset(target_weight=target_weight)
-        # print(f"state is {state[:, 2:5].cpu().numpy().reshape(-1)}")
         return state
 
    
     def step(self, action, get_task_achievement=False):
-        # print(action)
-        # print(self.env)
         next_state, reward, done, task_achievement = self.env.step(action)
-        # print(reward)
+        
         if get_task_achievement:
             return next_state, reward, done, np.zeros(5), task_achievement
         return next_state, reward, done, np.zeros(5)
@@ -123,7 +133,7 @@ class InterfaceEnvironment():
 
 from SAC.SACAgent import SACAgent
 import argparse
-from scooping_mechanism import ScoopingMachine
+from scooping_machine import ScoopingMachine
 
 def main():
     
@@ -134,27 +144,26 @@ def main():
     parser.add_argument("model", help="Model to be used")
     parser.add_argument("powder", help="Name of powder to be used")
     parser.add_argument("--samples",type=int, help="Number of samples to be measured", default=1)
-    parser.add_argument("--robot_ip", default='10.0.0.1', help="Enable debug mode")
-    parser.add_argument("--scale_port", default='/dev/ttyACM0', help="Scale serial port")
-    parser.add_argument("--gripper_port", default='/dev/ttyUSB0', help="Gripper serial port")
+    parser.add_argument("--config", help="Path to configuration file", default="config.json")
+    parser.add_argument("--no_vision", action='store_true',  help="Whether to use vision for the experiment", default=False)
     args = parser.parse_args()
 
+    config = load_config(args.config)
+    print("Configuration loaded successfully:")
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv(args.robot_ip, scale_port=args.scale_port, gripper_port=args.gripper_port)
+    env = WeighingEnv(config["robot_ip"], scale_port=config["scale_port"], gripper_port=config["gripper_port"])
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
     
-    if env.env.library=='franky':
-        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=False, robot=env.env.robot.robot)
+    if config["library"]=='franky':
+        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=False, robot=env.env.robot.robot, config=config)
     else:
-        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True)
+        scooper = ScoopingMachine(args.scooping_filename, args.positions_filename, verbose=True, config=config)
 
     
-    
-    # powders = ['sand', 'salt', 'sugar', 'flour']
-    
+           
     directory = args.directory
 
     if not os.path.exists(directory):
@@ -182,7 +191,7 @@ def main():
     scooper.pickup_spoon()
     
 
-    for target in range(10, 21, 5):
+    for target in range(10, 11, 5):
         skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
         while skip.strip().lower() != 'n':
             if skip.strip().lower() == 'y':
@@ -200,14 +209,14 @@ def main():
             i=0
             while i<args.samples:
                 try:
-                    scoop_success, scoop_angle = scooper.scoop()
+                    scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision)
                 except: 
                     env.env.robot.robot.recover_from_errors()
                     continue
                 if not scoop_success:
                     input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
                     continue
-                # try:
+                
 
                 # for dual speed (not sure if necessary) 
                 print(scoop_angle)
@@ -217,13 +226,11 @@ def main():
                      env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
                 # next line is only for baseline experiments. Adjust speed accordingly
                 
-                # env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
                 print(env.env.robot.shake_dynamics_factor)
                 
                 try:
                     agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
                 except:
-                #     print("Failed to load agent")
                     continue
                 i+=1 
                 final_weight = env.env.get_observation()[0]*2

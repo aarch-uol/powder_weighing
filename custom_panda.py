@@ -1,7 +1,10 @@
 import numpy as np
 from roboticstoolbox.robot.Robot import Robot
 from spatialmath import SE3
+from pathlib import Path
 
+# folder parent to get the urdf model
+parent_path = Path(__file__).resolve().parent
 
 class Panda(Robot):
     """
@@ -30,8 +33,9 @@ class Panda(Robot):
 
     def __init__(self):
 
+        print(parent_path)
         links, name, urdf_string, urdf_filepath = self.URDF_read(
-            "franka_robotiq/urdf/panda_robotiq.urdf", tld='/home/nero/Code/Niko/powder_weighing'
+            "franka_robotiq/urdf/panda_robotiq.urdf", tld=str(parent_path)
         )
         
         super().__init__(

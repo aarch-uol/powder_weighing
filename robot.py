@@ -23,9 +23,11 @@ class InclineException(Exception):
 
 
 class Robot(ABC):
-	@abstractmethod
+	
 	def __init__(self, robot_hostname, gripper_port):
-		pass
+		self.shake_scale=65
+		self.pitch_max = 45*np.pi/180
+		self.pitch_min = -0
 	
 	@abstractmethod
 	def shake(self, shake_amplitude):
@@ -44,27 +46,22 @@ class Robot(ABC):
 		pass
 
 	def load_tool(self):
-		# self.gripper.open()
-		# time.sleep(5)
-		# self.gripper.close()
+		self.gripper.open()
+		time.sleep(5)
+		self.gripper.close()
 		print("Please make sure tool is properly in place on gripper")
 		input('Press Enter to continue')
 
 class FrankyRobot(Robot):
 	def __init__(self, robot_hostname, gripper_port):
-		# try:
-		# 	self.gripper.activate()
-		# except:
-		# 	input('Gripper activation failed. Pres ENTER to conitnue or close program')
+		
+		super().__init__(robot_hostname,gripper_port)
 		self.robot = franky.Robot(robot_hostname)
-		self.shake_scale=65
 		self.robot.relative_dynamics_factor= franky.RelativeDynamicsFactor(
  			   velocity=1, acceleration=1, jerk=1
 		)
-		self.pitch_max = 45*np.pi/180
-		self.pitch_min = -0
+		
 		self.shake_dynamics_factor=[0.25, 0.13, 0.05]
-		# self.shake_dynamics_factor=np.array([0.4, 0.22, 0.35])
 
 	def set_shake_dynamics_factor(self, dynamics_factor: list[float]):
 		self.shake_dynamics_factor=np.array(dynamics_factor)
@@ -80,14 +77,12 @@ class FrankyRobot(Robot):
 		current_quat = end_effector_pose.quaternion
 		rot = R.from_quat(current_quat).as_matrix()
 		euler = R.from_matrix(rot).as_euler('xyz')
-		# print(f"Pitch angle is : {euler[1] * -5}")
 		return euler[1]
 		
 	def incline(self, incline_angle):
 
 		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
-		# print(incline_action)
 		action = incline_action
 		# print(new_pitch, self.pitch_max, self.pitch_min)
 		# if action zero or action outside of limits return
@@ -115,7 +110,7 @@ class FrankyRobot(Robot):
 				print("Declining correction")
 				correction = franky.Affine(translation=np.array([-0.0001, 0, -0.0018]))
 				position = (end_effector_pose * correction).translation
-		# print(position, type(position))
+		
 			
 		rot = R.from_quat(current_quat).as_matrix()
 		euler = R.from_matrix(rot).as_euler('xyz')
@@ -131,7 +126,6 @@ class FrankyRobot(Robot):
 			
 		achieved_quat = self.robot.current_pose.end_effector_pose.quaternion
 		achieved_pitch = R.from_quat(achieved_quat).as_euler('xyz', degrees=True)[1]
-		# print(f"Final pitch: {achieved_pitch:.1f}°")
 		return True
 	
 	def shake(self, shake_amplitude):
@@ -148,9 +142,9 @@ class FrankyRobot(Robot):
 		displacement = rot.apply(np.array([displacement, 0, 0]))
 		# compute x axis translation
 		x_translation = franky.Affine(translation=displacement)
-		# print(ee_pose, x_translation)
+		
 		displaced_position = x_translation * ee_pose
-		# print(displaced_position)
+	
 
 		shake_motion = franky.CartesianWaypointMotion(
 			[
@@ -194,22 +188,12 @@ class FrankyRobot(Robot):
 
 class PandaPyRobot(Robot):
 	def __init__(self, robot_hostname, gripper_port):
-		# self.gripper = pyRobotiqGripper.RobotiqGripper(portname=gripper_port)
-		# try:
-		# 	self.gripper.activate()
-		# except:
-		# 	input('Gripper activation failed. Pres ENTER to conitnue or close program')
+		
+		super().__init__(robot_hostname, gripper_port)
 		self.robot = panda_py.Panda(robot_hostname)
-		# self.robot.move_to_start()
-		self.shake_scale=65
+		
 		self.panda_model = Panda()
 		
-		self.pitch_max = np.pi/6
-		self.pitch_min = -0
-		# self.panda_model.links[1].qlim=np.array([-0.05,0.05])
-		
-		# self.initial_pos = np.array([0.0, -0.27, 0.0, -2.9, 0.0, 2.53, 0.78])	
-		# bellow is a test position for vial support 
 		self.initial_pos = np.array([0.01373907, 0.02742517, -0.01605499, -2.39315202, -0.00844878, 2.22456631, 0.77540909])
 		self.initial_tcp = self.panda_model.fkine(self.initial_pos)
 		self.current_tcp = self.panda_model.fkine(self.initial_pos)
@@ -219,7 +203,7 @@ class PandaPyRobot(Robot):
 		self.current_pose = self.initial_pos
 		# open swift to visualise	
 		self.viz = Swift()
-		self.viz.launch( )
+		self.viz.launch(browser='firefox')
 		self.viz.add(self.panda_model, readonly=True)
 		self.tcp_viz=sg.Axes(0.1)
 		self.viz.add(self.tcp_viz)
@@ -238,8 +222,6 @@ class PandaPyRobot(Robot):
 			Return current pitch of the tcp in rads
 		"""
 		pose = self.panda_model.fkine(self.robot.q)
-		# print(pose, pose.rpy())
-		# pitch = np.arcsin(-pose[2,0])
 		
 		return pose.rpy()[1]
 
@@ -288,7 +270,6 @@ class PandaPyRobot(Robot):
 			self.viz.step()
 			
 		
-		# self.panda_model.plot(waypoints, block=True)
 		traj_list = [q.reshape(7,1) for q in traj.q]
 		traj_return_list = [q.reshape(7,1) for q in traj_return.q]
 		
@@ -317,7 +298,6 @@ class PandaPyRobot(Robot):
 		new_pitch = self.get_pitch() - incline_action
 		print(incline_action)
 		action = incline_action
-		# print(new_pitch, self.pitch_max, self.pitch_min)
 		# if action zero or action outside of limits return
 		if action ==0:
 			return
@@ -352,7 +332,6 @@ class PandaPyRobot(Robot):
 	
 
 	def reset(self):
-		# self.robot.move_to_start()
 		self.current_tcp = self.panda_model.fkine(self.initial_pos)
 		self.robot.move_to_joint_position(self.initial_pos)
 		self.current_pose = self.initial_pos

@@ -17,45 +17,55 @@ from pyrobotiqgripper import RobotiqGripper
 from vision_powder_detection import detect_powder
 
 
-# --- Configuration ---
-#Cartesian impedance parameters
-STIFFNESS = [600.0, 600.0, 600.0, 40.0, 40.0, 40.0]  #Translational, rotational
+#
 
-#Final position and parameters
-FINAL_POSITION = [0.01373907, 0.02742517, -0.01605499, -2.39315202, -0.00844878, 2.22456631, 0.77540909]
-FINAL_SPEED = 0.05
-
-HOME_POSITION = [-0.00737469, -0.88195892, -0.01844868, -2.25721947, -0.02814894, 0.92399915, 0.75734471]
-HOME_CARTESIAN = "(t=[0.456037 -0.0117829 0.495123], q=[0.974623 0.000202117 -0.223852 0.000627159])"
-
-#Force visualization parameters
-PLOT_WINDOW_SECONDS = 60
-UPDATE_FREQUENCY_HZ = 100  #Reduced frequency to avoid overloading
-
-MIN_DEPTH=0.012
-MAX_DEPTH=0.018
-DEPTH_STEP=0.001
-
-MIN_PITCH=20
-MAX_PITCH=60
-PITCH_STEP=5
-
-OPTIMIAL_COVERAGE = 28
 
 class ScoopingMachine():
 
-    def __init__(self, scooping_filename, positions_filename, verbose = False, robot=None):
+    def __init__(self, scooping_filename, positions_filename, verbose = False, robot=None, config=None):
+        # Load config if not provided
+        if config is None:
+            config = load_config()
+            
+        #  --- Configuration Parameters ---
+        # Cartesian impedance parameters
+        self.STIFFNESS = config["cartesian_impedance"]["stiffness"]
+
+        # Final position and parameters
+        self.FINAL_POSITION = config["final_position"]["position"]
+        self.FINAL_SPEED = config["final_position"]["speed"]
+
+        # Home position
+        self.HOME_POSITION = config["home_position"]["position"]
+        self.HOME_CARTESIAN = config["home_position"]["cartesian"]
+
+        # Force visualization parameters
+        self.PLOT_WINDOW_SECONDS = config["force_visualization"]["plot_window_seconds"]
+        self.UPDATE_FREQUENCY_HZ = config["force_visualization"]["update_frequency_hz"]
+
+        # Depth parameters
+        self.MIN_DEPTH = config["depth_parameters"]["min_depth"]
+        self.MAX_DEPTH = config["depth_parameters"]["max_depth"]
+        self.DEPTH_STEP = config["depth_parameters"]["depth_step"]
+
+        # Pitch parameters
+        self.MIN_PITCH = config["pitch_parameters"]["min_pitch"]
+        self.MAX_PITCH = config["pitch_parameters"]["max_pitch"]
+        self.PITCH_STEP = config["pitch_parameters"]["pitch_step"]
+
+        # Coverage parameters
+        self.OPTIMAL_COVERAGE = config["coverage_parameters"]["optimal_coverage"]
+        self.MINIMUM_COVERAGE = config["coverage_parameters"]["minimum_coverage"]
+
         self.gripper = RobotiqGripper()
         # initialise robot
         if robot is not None:
             self.robot = robot
         else:
             self.robot=Robot('10.0.0.1')
-        # self.robot.relative_dynamics_factor = 0.05  
         self.verbose = verbose
         self.speed = 0.01
 
-        # self.best_angle=40
         # Ask for container and spoon names
         container_name = input("Enter the name of the container: ").strip()
         spoon_name = input("Enter the name of the spoon: ").strip()
@@ -198,10 +208,8 @@ class ScoopingMachine():
             #Initialize force visualizer with output filename
             
             #Set Cartesian impedance for scooping
-            self.robot.set_cartesian_impedance(STIFFNESS)
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # self.robot.relative_dynamics_factor = speed
-
+            self.robot.set_cartesian_impedance(self.STIFFNESS)
+            
             waypoints = []
             
             #Create waypoints with velocity profiles
@@ -227,7 +235,7 @@ class ScoopingMachine():
             
             #Reset to joint impedance mode after Cartesian motion
             self.robot.set_joint_impedance([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0])
-            # self.robot.relative_dynamics_factor = original_dynamics
+            
             
             if self.verbose:
                 print("\nScooping motion complete.")
@@ -236,7 +244,6 @@ class ScoopingMachine():
             
         except Exception as e:
             print(f"Execution error: {str(e)}")
-            # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
     def _execute_category(self, moves, category_name, category_params):
@@ -259,9 +266,6 @@ class ScoopingMachine():
             #Ensure we're in joint impedance mode
             self.robot.set_joint_impedance(stiffness)
             
-            #Save and set dynamics
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # self.robot.relative_dynamics_factor = speed
             
             #Convert moves to JointWaypoints with velocities
             waypoints = []
@@ -303,12 +307,11 @@ class ScoopingMachine():
 		    ))
             self.robot.move(motion)
             
-            # self.robot.relative_dynamics_factor = original_dynamics
+            
             return True
             
         except Exception as e:
             print(f"Error in {category_name}: {str(e)}")
-            # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
         
@@ -317,26 +320,20 @@ class ScoopingMachine():
         if self.verbose:
             print("\n--- MOVING TO FINAL POSITION ---")
         try:
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # self.robot.relative_dynamics_factor = FINAL_SPEED
-            motion = JointMotion(FINAL_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
- 			   velocity=FINAL_SPEED, acceleration=FINAL_SPEED, jerk=FINAL_SPEED
+            motion = JointMotion(self.FINAL_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=self.FINAL_SPEED, acceleration=self.FINAL_SPEED, jerk=self.FINAL_SPEED
 		    ))
             self.robot.move(motion)
-            # self.robot.relative_dynamics_factor = original_dynamics
             return True
         except Exception as e:
             print(f"Error moving to final position: {str(e)}")
-            # self.robot.relative_dynamics_factor = original_dynamics
             return False
         
     def _move_to_home_position(self):  
-        # original_dynamics = self.robot.relative_dynamics_factor
-        # self.robot.relative_dynamics_factor = 0.1
-        self.robot.move(JointMotion(HOME_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
+        self.robot.move(JointMotion(self.HOME_POSITION, relative_dynamics_factor=RelativeDynamicsFactor(
  			   velocity=0.1, acceleration=0.1, jerk=0.1
         )))
-        # self.robot.relative_dynamics_factor = original_dynamics
+        
 
     def _get_move_by_name(self, moves, name):
         """Find a move by name in the moves list"""
@@ -372,11 +369,7 @@ class ScoopingMachine():
             print(f"Stiffness: {stiffness}\nDamping: {damping}")
 
         try:
-            # # Save original dynamics
-            # original_dynamics = self.robot.relative_dynamics_factor
-            # # Set consistent speed for all motions
-            # self.robot.relative_dynamics_factor = 0.05
-
+          
             # --- SAFE APPROACH PHASE ---
             if self.verbose:
                 print("!SAFE APPROACH!")
@@ -473,14 +466,10 @@ class ScoopingMachine():
 		        )))
             
             # Restore original dynamics only at the very end
-            # self.robot.relative_dynamics_factor = original_dynamics
             return True
             
         except Exception as e:
             print(f"Error in safe pick/place ({action}): {str(e)}")
-            # Restore dynamics in case of error
-            # if 'original_dynamics' in locals():
-                # self.robot.relative_dynamics_factor = original_dynamics
             return False
 
     def load_powder(self):
@@ -532,11 +521,11 @@ class ScoopingMachine():
         self._move_to_home_position()
 
 
-    def scoop(self, starting_angle=40, vision_check=True):
+    def scoop(self, starting_angle=40,length=0.025, vision_check=True):
         final_modal_outcome = False #Vision scooping detection result
         angle = starting_angle
         depth = 0.015
-        length = 0.025
+        length = length
         while (not final_modal_outcome):
 
             print(f"\n=== EXECUTING SCOOPING SEQUENCE : DEPTH={depth} LENGTH={length} PITCH={angle} ===")
@@ -561,34 +550,35 @@ class ScoopingMachine():
             self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
  			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
 		    )))
-
-            final_modal_outcome, coverage = detect_powder()
+            coverage=0
+            if vision_check:
+                final_modal_outcome, coverage = detect_powder()
             print(coverage)
             if not vision_check:
                 final_modal_outcome=True
-            # coverage = 30
+            
             
             if self.verbose:
-                print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}; OPTIMAL_COVERAGE : {OPTIMIAL_COVERAGE}")
+                print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}; OPTIMAL_COVERAGE : {self.OPTIMAL_COVERAGE}")
             if vision_check:
-                if not final_modal_outcome:
+                if coverage<self.MINIMUM_COVERAGE:
                     print(f"WARNING: detected empty scoop. Trying again")
-                    if angle-PITCH_STEP >= MIN_PITCH:
-                        angle -=PITCH_STEP
-                    elif(depth+DEPTH_STEP)<= MAX_DEPTH:
-                        depth+=DEPTH_STEP
+                    if angle-self.PITCH_STEP >= self.MIN_PITCH:
+                        angle -=self.PITCH_STEP
+                    elif(depth+self.DEPTH_STEP)<= self.MAX_DEPTH:
+                        depth+=self.DEPTH_STEP
                     else:
                         return False, angle
-                elif coverage > OPTIMIAL_COVERAGE:
+                elif coverage > self.OPTIMAL_COVERAGE:
                     final_modal_outcome=False
                     print(f"WARNING: scoop contains too much powder. Trying again")
-                    if angle+PITCH_STEP <= MAX_PITCH:
-                        angle +=PITCH_STEP
-                    elif(depth-DEPTH_STEP)>= MIN_DEPTH:
-                        depth-=DEPTH_STEP
+                    if angle+self.PITCH_STEP <= self.MAX_PITCH:
+                        angle +=self.PITCH_STEP
+                    elif(depth-self.DEPTH_STEP)>= self.MIN_DEPTH:
+                        depth-=self.DEPTH_STEP
                     else:
                         return False, angle
-                #final_modal_outcome = True   
+                
 
             print(final_modal_outcome)         
 
@@ -635,9 +625,10 @@ def main():
 
     scooper.load_powder()
     scooper.pickup_spoon()
-    for angle in range(20,65,5):
-        for i in range (4):
-            scooper.scoop(starting_angle=angle, vision_check=False)
+    for  length in np.arange(0.025, 0.03, 0.002):
+        print(length)
+        for i in range (5):
+            scooper.scoop(starting_angle=40,length=length, vision_check=False)
             input('Measure scooped quantity and press ENTER to continue')
     scooper.reset_scoop_pose()
     scooper.drop_spoon()
