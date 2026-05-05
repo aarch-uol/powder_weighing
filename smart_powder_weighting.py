@@ -191,7 +191,7 @@ def main():
     scooper.pickup_spoon()
     
 
-    for target in range(10, 11, 5):
+    for target in range(10, 21, 5):
         skip = input(f'Skip current target weight {target} for current powder {powder} ? y/n: ')
         while skip.strip().lower() != 'n':
             if skip.strip().lower() == 'y':

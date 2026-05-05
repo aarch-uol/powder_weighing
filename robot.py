@@ -26,8 +26,8 @@ class Robot(ABC):
 	
 	def __init__(self, robot_hostname, gripper_port):
 		self.shake_scale=65
-		self.pitch_max = 45*np.pi/180
-		self.pitch_min = -0
+		self.pitch_max = 36*np.pi/180
+		self.pitch_min = -10*np.pi/180
 	
 	@abstractmethod
 	def shake(self, shake_amplitude):
@@ -81,7 +81,7 @@ class FrankyRobot(Robot):
 		
 	def incline(self, incline_angle):
 
-		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
+		incline_action = -12*np.pi/180 + (incline_angle+1.0)/2 * (12*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		action = incline_action
 		# print(new_pitch, self.pitch_max, self.pitch_min)
@@ -102,8 +102,8 @@ class FrankyRobot(Robot):
 		print(incline_action, new_pitch)
 		if incline_angle<-0.15:
 			if new_pitch > 15*np.pi/180:
-				print("correction used")
-				correction = franky.Affine(translation=np.array([-0.0015, 0, 0.0018]))
+				print("Incline used")
+				correction = franky.Affine(translation=np.array([-0.0015, 0, 0.0035]))
 				position = (end_effector_pose * correction).translation
 		else:
 			if incline_angle>0:
@@ -136,7 +136,7 @@ class FrankyRobot(Robot):
 		rot = R.from_quat(ee_pose.quaternion)
 	
 
-		displacement = -((shake_amplitude+1.0)/2)/self.shake_scale
+		displacement = -((shake_amplitude+1.0)/2)**2*0.016
 		if displacement >= -0.0009:
 			return
 		displacement = rot.apply(np.array([displacement, 0, 0]))
@@ -294,7 +294,7 @@ class PandaPyRobot(Robot):
 		self.panda_model.q=self.current_pose
 		self.current_tcp=self.panda_model.fkine(self.current_pose)
 
-		incline_action = -3*np.pi/180 + (incline_angle+1.0)/2 * (6*np.pi/180) 
+		incline_action = -12*np.pi/180 + (incline_angle+1.0)/2 * (12*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		print(incline_action)
 		action = incline_action
