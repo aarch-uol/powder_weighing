@@ -183,3 +183,17 @@ Results CSV files can be processed for analysis:
 - Shake dynamics are adjusted dynamically based on scoop angle detection
 - All weights are measured in miligrams
 - Target weights tested: 10mg, 15mg, 20mg
+
+## Cite
+The used DRL models are taken from this work: 
+```
+@misc{radulov2025flipflowabilityinformedpowderweighing,
+      title={FLIP: Flowability-Informed Powder Weighing}, 
+      author={Nikola Radulov and Alex Wright and Thomas Little and Andrew I. Cooper and Gabriella Pizzuto},
+      year={2025},
+      eprint={2506.03896},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2506.03896}, 
+}
+```
