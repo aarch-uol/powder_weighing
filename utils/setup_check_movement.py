@@ -7,19 +7,22 @@ import time
 import numpy as np
 import math
 
-env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM0', gripper_port='/dev/ttyUSB0', pitch_adjustment=False, min_target=10, max_target=20, normalisation=True, step_observation=True)
+env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM0', gripper_port='/dev/ttyUSB0', pitch_adjustment=False, new_setup=True, min_target=10, max_target=20, duration_based_shake=True)
 env.reset()
 
+actions = np.array([[-1, 0],[-0.8, 0],[-0.5, 0], [0, 0], [0.5, 0], [1, 0]])
 try:
     while True:
         
+        action_cycler = 0 
         for i in range(10):
-            action = np.random.uniform(-1,1, (2))
-            print(f'Action send is : {action}')
+            # action = np.random.uniform(-1,1, (2))
+            print(f'Action send is : {actions[action_cycler]}')
             # obs = env.step(action)
-            obs=env.step(np.array([1,-1]))
+            obs=env.step(actions[action_cycler])
             print(obs)
             print(math.degrees(env.robot.get_pitch()))
+            action_cycler = (action_cycler + 1) % len(actions)
             
         
 

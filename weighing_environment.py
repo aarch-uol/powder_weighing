@@ -9,7 +9,7 @@ import math
 
 class WeighingEnv:
 
-	def __init__(self, robot_hostname, scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1', library='franky', scale='entris', step_observation=False, normalisation = False, pitch_adjustment = False, min_target=10, max_target=20):
+	def __init__(self, robot_hostname, scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1', library='franky', scale='entris', pitch_adjustment = False, new_setup = False, min_target=10, max_target=20, duration_based_shake=False):
 		
 		if scale == 'entris':
 			self.scale = SartoriusEntrisScale(scale_port)
@@ -24,14 +24,14 @@ class WeighingEnv:
 			exit(1)
 		# move robot to the initial position
 		self.TOTAL_STEPS=10
+		self.duration_based_shake = duration_based_shake
 		self.step_no=0
 		self.min_target = min_target
 		self.max_target = max_target
+		self.new_setup = new_setup
 		self.finished=False
 		self.target_weight = np.random.randint(self.min_target, self.max_target)
 		self.library= library
-		self.add_step_observation = step_observation
-		self.normalisation = normalisation
 		self.weight_obs_cap = 43
 		#  add tracker of current weight for early stopping and reward shaping
 		self.current_weight = 0
@@ -61,24 +61,15 @@ class WeighingEnv:
 		self.current_weight = self.scale.get_weight()
 		while self.current_weight is None:
 			self.current_weight = self.scale.get_weight()
-		if self.normalisation == True:
-			current_weight = 2*(self.current_weight)/self.weight_obs_cap-1
-			# clip to 1
-			current_weight = min(current_weight, 1)
-			target_weight = 2*(self.target_weight-(self.min_target))/(self.max_target-self.min_target)-1
-		    
-			step_no  = 2*self.step_no/self.TOTAL_STEPS-1
-			print(f"robot pitch is {pitch} robot minimum pitch is {self.robot.pitch_min} robot maximum pitch is {self.robot.pitch_max}")
-			pitch = 2*(pitch - self.robot.pitch_min)/(self.robot.pitch_max-self.robot.pitch_min)-1 
-			if self.add_step_observation:
-				observation = np.array([current_weight, pitch, step_no, target_weight])
-			else:
-				observation = np.array([current_weight, pitch, target_weight])
+
+		if self.new_setup is True:
+			observation = np.array([self.current_weight/2,pitch*5,self.target_weight/2])
 		else:
 			observation = np.array([self.current_weight/2,pitch*-5,self.target_weight/2])
 		return observation
+	
+	
 	def step(self, action):
-		
 		# print(f"Received action is {action}")
 		
 		# if there's an incline exception try again
@@ -94,7 +85,10 @@ class WeighingEnv:
 		counter=0
 		while True:
 			try:
-				self.robot.shake(action[0])
+				if self.duration_based_shake:
+					self.robot.shake(action[0], duration=0.3)
+				else:
+					self.robot.shake(action[0])
 				break
 			except ShakeException:
 				# mark the step as if it had failed for it to be repeated

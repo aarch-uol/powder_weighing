@@ -523,8 +523,10 @@ class ScoopingMachine():
 
     def scoop(self, starting_angle=40,length=0.025, vision_check=True):
         final_modal_outcome = False #Vision scooping detection result
-        angle = starting_angle
-        depth = 0.015
+        angle = starting_angle 
+        #depth = 0.015 starting_angle=40 length=0.025 default parameters   0.015 32
+        depth = 0.013
+
         length = length
         while (not final_modal_outcome):
 
@@ -543,20 +545,24 @@ class ScoopingMachine():
             if not self._adjust_spoon_pitch(15, 0.02):
                 sys.exit(1)
 
-            current_pose = self.robot.current_cartesian_state
-            # Move to camera
-            right_translation = Affine(translation=np.array([-0.035, -0.065, 0.04]), quaternion=np.array([0, 0, 0, 1]))
-            new_pose = right_translation * current_pose
-            self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
- 			   velocity=self.speed, acceleration=self.speed, jerk=self.speed
-		    )))
+
+
             coverage=0
+            print(f"\nChecking scoop with vision (if enabled)...{vision_check}")
             if vision_check:
+                current_pose = self.robot.current_cartesian_state
+                # Move to camera
+                right_translation = Affine(translation=np.array([-0.035, -0.065, 0.04]), quaternion=np.array([0, 0, 0, 1]))
+                new_pose = right_translation * current_pose
+                self.robot.move(CartesianMotion(new_pose, relative_dynamics_factor=RelativeDynamicsFactor(
+                    velocity=self.speed, acceleration=self.speed, jerk=self.speed
+                )))
+                
                 final_modal_outcome, coverage = detect_powder()
-            print(coverage)
+          
             if not vision_check:
                 final_modal_outcome=True
-            
+            print(f"Final modal outcome: {final_modal_outcome}, Coverage: {coverage}")
             
             if self.verbose:
                 print(f"\n Empty? : {final_modal_outcome}; estimated coverage: {coverage}; OPTIMAL_COVERAGE : {self.OPTIMAL_COVERAGE}")

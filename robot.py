@@ -81,7 +81,7 @@ class FrankyRobot(Robot):
 		
 	def incline(self, incline_angle):
 
-		incline_action = -12*np.pi/180 + (incline_angle+1.0)/2 * (12*np.pi/180) 
+		incline_action = incline_angle * (8*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		action = incline_action
 		# print(new_pitch, self.pitch_max, self.pitch_min)
@@ -101,14 +101,14 @@ class FrankyRobot(Robot):
 		# x axis correction for inclination
 		print(incline_action, new_pitch)
 		if incline_angle<-0.15:
-			if new_pitch > 15*np.pi/180:
-				print("Incline used")
-				correction = franky.Affine(translation=np.array([-0.0015, 0, 0.0035]))
-				position = (end_effector_pose * correction).translation
+			# if new_pitch > 15*np.pi/180:
+			print("Incline used")
+			correction = franky.Affine(translation=np.array([-0.0025, 0, 0.0035]))
+			position = (end_effector_pose * correction).translation
 		else:
 			if incline_angle>0:
 				print("Declining correction")
-				correction = franky.Affine(translation=np.array([-0.0001, 0, -0.0018]))
+				correction = franky.Affine(translation=np.array([-0.0000, 0, -0.000]))
 				position = (end_effector_pose * correction).translation
 		
 			
@@ -128,7 +128,13 @@ class FrankyRobot(Robot):
 		achieved_pitch = R.from_quat(achieved_quat).as_euler('xyz', degrees=True)[1]
 		return True
 	
-	def shake(self, shake_amplitude):
+	def shake(self, shake_amplitude, duration=None):
+		if duration is None:
+			self._shake_velocity_based(shake_amplitude)
+		else:
+			self._shake_duration_based(shake_amplitude, duration)
+
+	def _shake_velocity_based(self, shake_amplitude):
 		# get current pose and orientation
 
 		ee_pose = self.robot.current_pose.end_effector_pose
@@ -136,7 +142,7 @@ class FrankyRobot(Robot):
 		rot = R.from_quat(ee_pose.quaternion)
 	
 
-		displacement = -((shake_amplitude+1.0)/2)**2*0.016
+		displacement = -((shake_amplitude+1.0)/2)*0.016
 		if displacement >= -0.0009:
 			return
 		displacement = rot.apply(np.array([displacement, 0, 0]))
@@ -185,7 +191,36 @@ class FrankyRobot(Robot):
 					except:
 						raise ShakeException('Failed to recover')
 
+	def _shake_duration_based(self, shake_amplitude, duration):
+		# get current pose and orientation
+		print(f'Shake amplitude is {shake_amplitude}, duration is {duration}')
+		ee_pose = self.robot.current_pose.end_effector_pose
 
+		rot = R.from_quat(ee_pose.quaternion)
+	
+
+		displacement = -((shake_amplitude+1.0)/2)*0.016
+		if displacement >= -0.0009:
+			return
+		displacement = rot.apply(np.array([displacement, 0, 0]))
+		# compute x axis translation
+		x_translation = franky.Affine(translation=displacement)
+		
+		displaced_position = x_translation * ee_pose
+	
+
+		shake_motion = franky.CartesianWaypointMotion(
+			[
+				franky.CartesianWaypoint(ee_pose),
+				franky.CartesianWaypoint(franky.CartesianState(displaced_position, velocity=franky.Twist([-0.0, 0.0, 0.0])),  minimum_time=franky.Duration((int)(duration*500))),
+				franky.CartesianWaypoint(ee_pose, minimum_time=franky.Duration((int)(duration*500)))
+			],
+			# sand optimised values: 0.2, 0.12, 0.05
+			relative_dynamics_factor=franky.RelativeDynamicsFactor(0.4, 0.22, 0.35)
+		)
+		self.robot.move(shake_motion)
+
+		
 class PandaPyRobot(Robot):
 	def __init__(self, robot_hostname, gripper_port):
 		
@@ -294,7 +329,7 @@ class PandaPyRobot(Robot):
 		self.panda_model.q=self.current_pose
 		self.current_tcp=self.panda_model.fkine(self.current_pose)
 
-		incline_action = -12*np.pi/180 + (incline_angle+1.0)/2 * (12*np.pi/180) 
+		incline_action = -8*np.pi/180 + (incline_angle+1.0)/2 * (8*np.pi/180) 
 		new_pitch = self.get_pitch() - incline_action
 		print(incline_action)
 		action = incline_action
