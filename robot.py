@@ -103,7 +103,7 @@ class FrankyRobot(Robot):
 		if incline_angle<-0.15:
 			# if new_pitch > 15*np.pi/180:
 			print("Incline used")
-			correction = franky.Affine(translation=np.array([-0.0025, 0, 0.0035]))
+			correction = franky.Affine(translation=np.array([-0.002, 0, 0.002]))
 			position = (end_effector_pose * correction).translation
 		else:
 			if incline_angle>0:

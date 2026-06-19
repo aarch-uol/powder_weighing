@@ -152,7 +152,7 @@ def main():
     print("Configuration loaded successfully:")
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv(config["robot_ip"], scale_port=config["scale_port"], gripper_port=config["gripper_port"], pitch_adjustment=False, min_target=10, max_target=20)
+    env = WeighingEnv(config["robot_ip"], scale_port=config["scale_port"], gripper_port=config["gripper_port"], pitch_adjustment=False, min_target=10, max_target=20, duration_based_shake=True)
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
@@ -212,7 +212,7 @@ def main():
             i=0
             while i<args.samples:
                 try:
-                    scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision, starting_angle=35, length=0.017)
+                    scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision, starting_angle=40, length=0.02)
                 except: 
                     env.env.robot.robot.recover_from_errors()
                     continue

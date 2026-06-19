@@ -476,6 +476,7 @@ class ScoopingMachine():
         # 1. Pick up container and move to endpoint
         if self.verbose:
             print("\n=== PICKING UP CONTAINER ===")
+        
         self._move_to_home_position()
         if not self._execute_safe_pick_place(self.container_move, "pick", self.category_params):
             print("Failed to pick container")
@@ -487,6 +488,17 @@ class ScoopingMachine():
         if not self._execute_safe_pick_place(self.endpoint_move, "place", self.category_params):
             print("Failed to place container at endpoint")
             sys.exit(1)
+
+        backwards_from_final = CartesianMotion(
+            Affine([-0.05, 0.0, 0.0]),
+            ReferenceType.Relative,
+            relative_dynamics_factor=RelativeDynamicsFactor(
+ 			   velocity=0.05, acceleration=0.05, jerk=0.05
+            ))
+        try:
+            self.robot.move(backwards_from_final)
+        except Exception as e:
+            print(f"Error moving backwards from final position: {str(e)}")
         self._move_to_home_position()
 
     def pickup_spoon(self):
@@ -600,6 +612,7 @@ class ScoopingMachine():
     
     def reset_scoop_pose(self):
         
+        self._adjust_spoon_pitch(20)
         backwards_from_final = CartesianMotion(
             Affine([-0.2, 0.0, 0.0]),
             ReferenceType.Relative,
