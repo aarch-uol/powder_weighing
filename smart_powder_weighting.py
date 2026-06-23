@@ -101,15 +101,15 @@ class InterfaceEnvironment():
 
    
     def reset(self, target_weight=None):
-        state = self.env.reset(target_weight=target_weight)
+        state, _ = self.env.reset(options={'target_weight': target_weight} if target_weight is not None else None)
         return state
 
    
     def step(self, action, get_task_achievement=False):
-        next_state, reward, done, task_achievement = self.env.step(action)
+        next_state, reward, done, truncated, info = self.env.step(action)
         
         if get_task_achievement:
-            return next_state, reward, done, np.zeros(5), task_achievement
+            return next_state, reward, done, np.zeros(5), info["raw_weight_obs"]
         return next_state, reward, done, np.zeros(5)
     
     @abstractmethod

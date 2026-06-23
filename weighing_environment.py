@@ -3,14 +3,20 @@ import time
 from scale import SartoriusEntrisScale, FisherScale
 from robot import *
 import math
+import gymnasium as gym 
+from gymnasium import spaces
 		
 
 
 
-class WeighingEnv:
-
-	def __init__(self, robot_hostname, scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1', library='franky', scale='entris', pitch_adjustment = False, new_setup = False, min_target=10, max_target=20, duration_based_shake=False):
+class WeighingEnv(gym.Env):
+	"""
+    	Gymnasium-compliant environment for robotic powder weighing.
+    """
+	metadata = {"render_modes": ["human"]}
+	def __init__(self, robot_hostname, scale_port='/dev/ttyUSB0', gripper_port='/dev/ttyUSB1', library='franky', scale='entris', pitch_adjustment = False, new_setup = False, min_target=10, max_target=20, duration_based_shake=False, reward_type='negative_abs_error'):
 		
+		super().__init__()
 		if scale == 'entris':
 			self.scale = SartoriusEntrisScale(scale_port)
 		else:
@@ -36,6 +42,15 @@ class WeighingEnv:
 		#  add tracker of current weight for early stopping and reward shaping
 		self.current_weight = 0
 		self.pitch_adjustment = pitch_adjustment
+		self.reward_type = reward_type
+		self.past_error = None
+
+		# Action space: [shake_intensity, incline_angle]
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
+
+        # Observation space: [current_weight/2, pitch*5 (or -5), target_weight/2]
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float32)
+
 
 	def __shake_surplus(self):
 		"""
@@ -66,8 +81,10 @@ class WeighingEnv:
 			observation = np.array([self.current_weight/2,pitch*5,self.target_weight/2])
 		else:
 			observation = np.array([self.current_weight/2,pitch*-5,self.target_weight/2])
-		return observation
+		return observation.astype(np.float32)
 	
+	def render(self):
+		return None
 	
 	def step(self, action):
 		# print(f"Received action is {action}")
@@ -96,13 +113,25 @@ class WeighingEnv:
 				raise Exception("Shake return failed. Environment needs to be reset")
 		# sleep a bit for the scale to chill
 		time.sleep(2)
+
 		observation = self.get_observation()
 		print(f'Current weight: {self.current_weight}, Target weight: {self.target_weight}')
-		reward = -np.abs(self.current_weight-self.target_weight)
-		if reward >-1:
-			reward +=1
-		reward = reward * (1.1 **min(self.step_no, 10))
 		
+		if self.reward_type=='negative_abs_error':
+			reward = -np.abs(self.current_weight-self.target_weight)
+			if reward >-1:
+				reward +=1
+			reward = reward * (1.1 **min(self.step_no, 10))
+		else:
+			error = np.abs(self.current_weight-self.target_weight)
+			if self.past_error is None:
+				reward = (self.target_weight-error)/self.target_weight
+			else:
+				reward = (self.past_error-error)/self.target_weight
+			self.past_error = error
+			reward = reward * 100
+				
+
 		#  if overdumped stop
 		if self.current_weight - self.target_weight > 0:
 			self.finished = True
@@ -112,16 +141,20 @@ class WeighingEnv:
 		
 		self.step_no+=1
 		
+		truncated = self.step_no >= self.TOTAL_STEPS
+		info = {"raw_weight_obs": observation[0]}
 		print(f'Step observation is{observation}, reward:{reward}')
-		return observation, reward, self.finished, observation[0] 
+		return observation, reward, self.finished, truncated, info
 				
 		
 	
-	def reset(self, target_weight=None):
+	def reset(self, seed=None, options=None):
+
+		super().reset(seed=seed)
 		print('MSG: Environment reset ...')
 		self.robot.reset()
-		if target_weight is not None:
-			self.target_weight = target_weight
+		if options is not None and 'target_weight' in options:
+			self.target_weight = options['target_weight']
 		else: 
 			self.target_weight = np.random.randint(self.min_target, self.max_target)
 		
@@ -138,6 +171,7 @@ class WeighingEnv:
 		self.step_no=0
 		self.finished=False
 		print('MSG: Environment reset successfully')
-		return self.get_observation()
+		
+		return self.get_observation(), {}
 
  
