@@ -7,10 +7,10 @@ import time
 import numpy as np
 import math
 
-env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM0', gripper_port='/dev/ttyUSB0', pitch_adjustment=False, new_setup=True, min_target=10, max_target=20, duration_based_shake=True)
+env = WeighingEnv('10.0.0.1', scale_port='/dev/ttyACM1', gripper_port='/dev/ttyUSB0', pitch_adjustment=False, new_setup=True, min_target=10, max_target=20, duration_based_shake=True)
 env.reset()
 
-actions = np.array([[-1, 0],[-0.8, 0],[-0.5, 0], [0, 0], [0.5, 0], [1, 0]])
+actions = np.array([[0.12612994742010758,0.024618991718629968]])
 try:
     while True:
         

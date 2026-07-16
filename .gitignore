@@ -1,3 +1,6 @@
 **/__pycache__
 **/experiment*
 **/Experiment*
+**/vision_captures*
+**/logs*
+**/wandb*

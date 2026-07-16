@@ -216,7 +216,7 @@ class SACAgent(object):
 
         self.actor.policyNetwork.load_state_dict(torch.load(os.path.join(self.model_dir, 'Policy.pth'), map_location=torch.device(self.userDefinedSettings.DEVICE)))
 
-    def test(self, model_path=None, policy=None, domain_num=None, test_num=5, render_flag=True, reward_show_flag=True, target_weight=None):
+    def test(self, model_path=None, policy=None, domain_num=None, test_num=5, render_flag=True, reward_show_flag=True, target_weight=None, action_plot=False):
         if model_path is not None:
             self.load_model(model_path)
 
@@ -225,15 +225,19 @@ class SACAgent(object):
         else:
             actor = self.actor
 
+        
         total_reward_list = []
         task_achievement_list = []
         for episode_num in range(test_num):
             # done automatically by orbit
             # self.env.domainInfo.set_parameters()
+            incline_action_history = []
+            shake_action_history = []
+            weight_history = []
             if target_weight is not None:
                 state = self.env.reset(target_weight=target_weight)
             else: 
-                target_weight = self.env.reset()
+                target_weight = self.env.reset()[2]*2
             total_reward = 0.
 
             if render_flag:
@@ -243,13 +247,18 @@ class SACAgent(object):
             for step_num in range(self.env.MAX_EPISODE_LENGTH):
                 if render_flag is True:
                     self.env.render()
-
+                
+                # print(f'Current weight: {self.env.env.get_observation()[0]*2}, Target weight: {target_weight}')
                 action, _ = actor.get_action(state, step=step_num, deterministic=False)
+                incline_action_history.append(action[1])
+                shake_action_history.append(action[0])
+                weight_history.append((self.env.env.get_observation()[0]*2)/target_weight)
                 next_state, reward, done, _, task_achievement = self.env.step(action, get_task_achievement=True)
                 state = next_state
                 total_reward += reward
                 if done:
                     break
+            weight_history.append((self.env.env.get_observation()[0]*2)/target_weight)
 
             total_reward_list.append(total_reward)
             task_achievement_list.append(task_achievement)
@@ -259,5 +268,33 @@ class SACAgent(object):
 
         if model_path is not None:
             print('Avarage: {:>8.2f}'.format(np.mean(total_reward_list)))
+        
+        if action_plot:
+            import matplotlib.pyplot as plt
+            
+            plt.figure(figsize=(12, 6))
+            plt.subplot(3, 1, 1)
+            plt.plot(incline_action_history)
+            plt.title('Incline Action History')
+            plt.ylabel('Incline Action')
 
+            plt.subplot(3, 1, 2)
+            plt.plot(shake_action_history)
+            plt.title('Shake Action History')
+            plt.ylabel('Shake Action')
+
+            plt.subplot(3, 1, 3)
+            plt.plot(weight_history)
+            plt.title('Weight History')
+            plt.ylabel('Weight')
+            plt.xlabel('Step Number')
+
+            plt.tight_layout()
+            plt.xlim(0, len(weight_history) -1)
+            if model_path is not None:
+                plot_save_path = os.path.join(model_path, 'action_weight_plot.png')
+                plt.savefig(plot_save_path)
+                print(f'Action and weight history plot saved to {plot_save_path}')
+            else:
+                plt.show() 
         return np.mean(total_reward_list), sum(task_achievement_list) / len(task_achievement_list)

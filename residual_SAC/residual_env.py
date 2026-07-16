@@ -3,7 +3,11 @@ import numpy as np
 from SAC.SACAgent import SACAgent
 import argparse
 from scooping_machine import ScoopingMachine
-
+import torch
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from weighing_environment import MotionFaultException
 
 class UserDefinedSettings(object):
 
@@ -130,8 +134,8 @@ class ResidualAwareWrapper(gym.Wrapper):
         
         # 1. Restrict the Action Space to safe residual bounds (+/- 0.2)
         self.action_space = gym.spaces.Box(
-            low=-1.0 * action_scaling_factor, 
-            high=1.0 * action_scaling_factor, 
+            low=-1.0, 
+            high=1.0, 
             shape=self.env.action_space.shape, 
             dtype=np.float32
         )
@@ -147,6 +151,7 @@ class ResidualAwareWrapper(gym.Wrapper):
             shape=(orig_obs_shape + base_act_shape,), 
             dtype=np.float32
         )
+        self.action_scaling_factor = action_scaling_factor
         # initialise the base controller
         settings = UserDefinedSettings()
         self.base_controller = SACAgent(InterfaceEnvironment(self.env), settings)
@@ -162,29 +167,39 @@ class ResidualAwareWrapper(gym.Wrapper):
         """
         self.step_num = 0
         #  the spoon needs to be reloaded on reset 
-        scoop_success, scoop_angle = self.scooping_machine.scoop(vision_check=False, starting_angle=40, length=0.02)
-                
+        while(True):
+            try:
+                scoop_success, scoop_angle = self.scooping_machine.scoop(vision_check=True, starting_angle=40, length=0.02)
+                break
+            except Exception as e:
+                print(f"Error occurred while scooping: {e}")
+            
+
         # 1. Get original observation from the physical environment
         obs, info = self.env.reset(**kwargs)
-        
+        print(f"Reset observation: {obs}, Info: {info}")
         # 2. Calculate the base action for this initial state
         self.current_base_action, _ = self.base_controller.actor.get_action(obs, step=0, deterministic=False)
         
         # 3. Append base action to the observation
         augmented_obs = np.concatenate([obs, self.current_base_action], dtype=np.float32)
         
+        print(f"Reset augmented observation: {augmented_obs}, Base action: {self.current_base_action}")
         return augmented_obs, info
 
     def step(self, residual_action):
         # 1. Combine previous base action with the agent's residual
-        final_action = self.current_base_action + residual_action
-        
+        final_action = self.current_base_action + residual_action*self.action_scaling_factor
         # Clip the action to the expected space
         final_action = np.clip(final_action, -1.0, 1.0)
-        
+        print(f"Base intended: {self.current_base_action}, Agent added: {residual_action*self.action_scaling_factor}, Executed: {final_action}")
         # 2. Step the physical environment
-        next_obs, reward, terminated, truncated, info = self.env.step(final_action)
-        
+        try: 
+            next_obs, reward, terminated, truncated, info = self.env.step(final_action)
+        except MotionFaultException as e:
+            self.current_base_action, _ = self.base_controller.actor.get_action(e.observation, step=self.step_num, deterministic=False)
+            augmented_next_obs = np.concatenate([e.observation, self.current_base_action], dtype=np.float32)
+            return augmented_next_obs, e.reward, e.terminated, e.truncated, e.info
         # 3. Calculate the NEXT base action based on the new state
         self.current_base_action, _ = self.base_controller.actor.get_action(next_obs, step=self.step_num, deterministic=False)
         
@@ -195,7 +210,9 @@ class ResidualAwareWrapper(gym.Wrapper):
         info["base_action"] = self.current_base_action
         info["residual_action"] = residual_action
         info["executed_action"] = final_action
+
+        print(f"Residual Step observation: {augmented_next_obs}, Reward: {reward}, ")
         
-        print(f"Base intended: {self.current_base_action}, Agent added: {residual_action}, Executed: {final_action}")
+        
         
         return augmented_next_obs, reward, terminated, truncated, info

@@ -103,12 +103,12 @@ class FrankyRobot(Robot):
 		if incline_angle<-0.15:
 			# if new_pitch > 15*np.pi/180:
 			print("Incline used")
-			correction = franky.Affine(translation=np.array([-0.002, 0, 0.002]))
+			correction = franky.Affine(translation=np.array([-0.002, 0, 0.0005]))
 			position = (end_effector_pose * correction).translation
 		else:
 			if incline_angle>0:
 				print("Declining correction")
-				correction = franky.Affine(translation=np.array([-0.0000, 0, -0.000]))
+				correction = franky.Affine(translation=np.array([0.002, 0, 0.001]))
 				position = (end_effector_pose * correction).translation
 		
 			
@@ -121,8 +121,10 @@ class FrankyRobot(Robot):
 		motion = franky.CartesianMotion(franky.RobotPose(franky.Affine(position, new_quat)), relative_dynamics_factor= franky.RelativeDynamicsFactor(
  			   velocity=0.05, acceleration=0.05, jerk=0.05
 		))
-		self.robot.move(motion)
-		
+		try:
+			self.robot.move(motion)
+		except:
+			raise InclineException('Failed to do incline movement')
 			
 		achieved_quat = self.robot.current_pose.end_effector_pose.quaternion
 		achieved_pitch = R.from_quat(achieved_quat).as_euler('xyz', degrees=True)[1]
@@ -202,23 +204,60 @@ class FrankyRobot(Robot):
 		displacement = -((shake_amplitude+1.0)/2)*0.016
 		if displacement >= -0.0009:
 			return
+		else:
+			displacement = min(displacement, -0.0015)
+		print(f'Displacement is {displacement}')
 		displacement = rot.apply(np.array([displacement, 0, 0]))
+		
 		# compute x axis translation
 		x_translation = franky.Affine(translation=displacement)
 		
 		displaced_position = x_translation * ee_pose
-	
 
-		shake_motion = franky.CartesianWaypointMotion(
-			[
-				franky.CartesianWaypoint(ee_pose),
-				franky.CartesianWaypoint(franky.CartesianState(displaced_position, velocity=franky.Twist([-0.0, 0.0, 0.0])),  minimum_time=franky.Duration((int)(duration*500))),
-				franky.CartesianWaypoint(ee_pose, minimum_time=franky.Duration((int)(duration*500)))
-			],
-			# sand optimised values: 0.2, 0.12, 0.05
-			relative_dynamics_factor=franky.RelativeDynamicsFactor(0.4, 0.22, 0.35)
-		)
-		self.robot.move(shake_motion)
+		final_state = franky.CartesianState(
+            ee_pose, 
+            velocity=franky.Twist([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]), # Force zero acceleration too
+        )
+
+		turnaround_state = franky.CartesianState(
+            displaced_position, 
+            velocity=franky.Twist([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]), # Force zero acceleration too
+        )
+
+		
+		forward_duration = int(duration *1000)
+		backward_duration = int(forward_duration*1.5)
+		dynamics = franky.RelativeDynamicsFactor(0.37, 0.22, 0.35)
+		
+		motion_shake = franky.CartesianWaypointMotion(
+            [
+                franky.CartesianWaypoint(ee_pose),
+                franky.CartesianWaypoint(turnaround_state, minimum_time=franky.Duration(backward_duration)),
+                franky.CartesianWaypoint(final_state, minimum_time=franky.Duration(forward_duration))
+            ],
+            relative_dynamics_factor=dynamics
+        )
+        
+        # Execute the full shake in one continuous control loop
+		success=False
+		# try fast if not recover slow
+		try:
+			self.robot.move(motion_shake)
+		except Exception as e:
+			print(f"Movement failed trying to use recovery {e}")
+			time.sleep(0.5)
+			if self.robot.recover_from_errors():
+				return_motion = franky.CartesianWaypointMotion(
+            	[
+					franky.CartesianWaypoint(turnaround_state, minimum_time=franky.Duration(backward_duration), hold_target_duration=franky.Duration(100)),
+					franky.CartesianWaypoint(final_state, minimum_time=franky.Duration(forward_duration), hold_target_duration=franky.Duration(100))
+				],
+				relative_dynamics_factor=franky.RelativeDynamicsFactor(0.2, 0.2, 0.2)
+			)
+			try:
+				self.robot.move(return_motion)
+			except:
+				raise ShakeException('Failed to recover')
 
 		
 class PandaPyRobot(Robot):

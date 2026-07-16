@@ -4,7 +4,7 @@ sudo modprobe vhci-hcd
 
 sudo usermod -aG dialout $USER
 
-sudo usbip attach -r 10.6.203.8 -b 1-1.1
-sudo usbip attach -r 10.6.203.8 -b 1-1.2
+sudo usbip attach -r 10.6.203.8 -b 1-1.3
+sudo usbip attach -r 10.6.203.8 -b 2-1
 sudo usbip attach -r 10.6.203.8 -b 1-1.4
 

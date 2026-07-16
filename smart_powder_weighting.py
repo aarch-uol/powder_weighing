@@ -152,7 +152,7 @@ def main():
     print("Configuration loaded successfully:")
 
     print("Running full experiment on different powders on simulation trained agent")
-    env = WeighingEnv(config["robot_ip"], scale_port=config["scale_port"], gripper_port=config["gripper_port"], pitch_adjustment=False, min_target=10, max_target=20, duration_based_shake=True)
+    env = WeighingEnv(config["robot_ip"], scale_port=config["scale_port"], gripper_port=config["gripper_port"], pitch_adjustment=False, min_target=10, max_target=20, duration_based_shake=True, new_setup=True, reward_type='error_change')
     env = InterfaceEnvironment(env)
     settings = UserDefinedSettings()
     agent = SACAgent(env, settings)
@@ -175,9 +175,15 @@ def main():
         'dr': './models/SAC_DR_ADHESION_ISAAC_POWDER_WEIGHING_ENVII2025-03-16 22-18-29.590903',
         'reverse':'./models/SAC_ISAAC_POWDER_WEIGHING_REVERSE_ENVII_7_per_class_32025-04-02 23-50-08.863929',
         'random_new_reward': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle',
-        'SPOON_08':'./models/Spoon_0.8_0.9_1.0_00011111111000/ISAAC_POWDER_WEIGHING_ENVII_1348',
-        'spoon_12': './models/Spoon_1.2_1.2_0.3_00011111111000/ISAAC_POWDER_WEIGHING_ENVII_1347/',
-
+        'spoon_07_15_00000000000000': './models/Spoon_0.7_1.5_00000000000000',
+        'spoon_15_11_00000000000000': './models/Spoon_1.1_1.5_00000000000000',
+        'spoon_11_11_11111111111111': './models/Spoon_11_11_11111111111111',
+        'spoon_15_15_00011111111000': './models/Spoon_1.5_1.5_00011111111000',
+        'spoon_11_11_00011111111000': './models/Spoon_11_11_00011111111000',
+        'spoon_10_10_00000000000000_aor28': './models/Spoon_10_10_00000000000000_aor28',
+        'baseline_policy': './models/baseline_policy_simulation',
+        'spoon_basic_full_set_fast': './models/Spoon_10_10_00000000000000_full_set_fast',
+        'spoon_10_10_00000000000000_aor32': './models/Spoon_10_10_00000000000000_aor_32'
     }
 
     model = args.model
@@ -212,7 +218,7 @@ def main():
             i=0
             while i<args.samples:
                 try:
-                    scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision, starting_angle=40, length=0.02)
+                    scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision, starting_angle=45, length=0.02)
                 except: 
                     env.env.robot.robot.recover_from_errors()
                     continue
@@ -231,11 +237,14 @@ def main():
                 
                 print(env.env.robot.shake_dynamics_factor)
                 
-                 
-                agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
-                # except:
-                #     continue 
+                try:
+                    agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
+                except Exception as e:
+                    print(f"Error occurred: {e}")
+                    continue 
                 
+                # agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
+
                 i+=1 
                 final_weight = env.env.get_observation()[0]*2
                 print(f'Experiment results are: {[final_weight, target, abs(target-final_weight), scoop_angle]}')
