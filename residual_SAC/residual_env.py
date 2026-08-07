@@ -179,7 +179,7 @@ class ResidualAwareWrapper(gym.Wrapper):
         obs, info = self.env.reset(**kwargs)
         print(f"Reset observation: {obs}, Info: {info}")
         # 2. Calculate the base action for this initial state
-        self.current_base_action, _ = self.base_controller.actor.get_action(obs, step=0, deterministic=False)
+        self.current_base_action, _ = self.base_controller.actor.get_action(obs, step=0, deterministic=True)
         
         # 3. Append base action to the observation
         augmented_obs = np.concatenate([obs, self.current_base_action], dtype=np.float32)
@@ -197,11 +197,11 @@ class ResidualAwareWrapper(gym.Wrapper):
         try: 
             next_obs, reward, terminated, truncated, info = self.env.step(final_action)
         except MotionFaultException as e:
-            self.current_base_action, _ = self.base_controller.actor.get_action(e.observation, step=self.step_num, deterministic=False)
+            self.current_base_action, _ = self.base_controller.actor.get_action(e.observation, step=self.step_num, deterministic=True)
             augmented_next_obs = np.concatenate([e.observation, self.current_base_action], dtype=np.float32)
             return augmented_next_obs, e.reward, e.terminated, e.truncated, e.info
         # 3. Calculate the NEXT base action based on the new state
-        self.current_base_action, _ = self.base_controller.actor.get_action(next_obs, step=self.step_num, deterministic=False)
+        self.current_base_action, _ = self.base_controller.actor.get_action(next_obs, step=self.step_num, deterministic=True)
         
         # 4. Append the next base action to the next observation
         augmented_next_obs = np.concatenate([next_obs, self.current_base_action], dtype=np.float32)

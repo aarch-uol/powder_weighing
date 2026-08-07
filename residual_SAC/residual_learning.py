@@ -199,12 +199,12 @@ def main():
             log_interval=1,
             reset_num_timesteps=False,  # CRITICAL: Keeps the internal step counter continuous across materials
         )
-        final_save_path = os.path.join(log_dir, f"final_{trained_materials}_{deterministic_run_id}_policy")
-        buffer_save_path = os.path.join(log_dir, f"final_{trained_materials}_{deterministic_run_id}_replay_buffer")
+        final_save_path = os.path.join(log_dir, f"final_{'_'.join(trained_materials)}_{deterministic_run_id}_policy")
+        buffer_save_path = os.path.join(log_dir, f"final_{'_'.join(trained_materials)}_{deterministic_run_id}_replay_buffer")
     except Exception as e:
         print(f"\nTraining interrupted. Saving emergency checkpoint... {e}")
-        final_save_path = os.path.join(log_dir, f"final_following_exception_{trained_materials}_{deterministic_run_id}_policy")
-        buffer_save_path = os.path.join(log_dir, f"final_following_exception_{trained_materials}_{deterministic_run_id}_replay_buffer")
+        final_save_path = os.path.join(log_dir, f"final_following_exception_{'_'.join(trained_materials)}_{deterministic_run_id}_policy")
+        buffer_save_path = os.path.join(log_dir, f"final_following_exception_{'_'.join(trained_materials)}_{deterministic_run_id}_replay_buffer")
     # 7. Save final model for this material
     
     residual_model.save(final_save_path)

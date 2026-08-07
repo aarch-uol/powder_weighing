@@ -249,7 +249,7 @@ class SACAgent(object):
                     self.env.render()
                 
                 # print(f'Current weight: {self.env.env.get_observation()[0]*2}, Target weight: {target_weight}')
-                action, _ = actor.get_action(state, step=step_num, deterministic=False)
+                action, _ = actor.get_action(state, step=step_num, deterministic=True)
                 incline_action_history.append(action[1])
                 shake_action_history.append(action[0])
                 weight_history.append((self.env.env.get_observation()[0]*2)/target_weight)
@@ -267,7 +267,7 @@ class SACAgent(object):
                 print('Tests: {:>5} | Total Reward: {:>8.2f} | Task Achievement: {}'.format(episode_num, total_reward, task_achievement))
 
         if model_path is not None:
-            print('Avarage: {:>8.2f}'.format(np.mean(total_reward_list)))
+            print('Average: {:>8.2f}'.format(np.mean(total_reward_list)))
         
         if action_plot:
             import matplotlib.pyplot as plt
@@ -297,4 +297,4 @@ class SACAgent(object):
                 print(f'Action and weight history plot saved to {plot_save_path}')
             else:
                 plt.show() 
-        return np.mean(total_reward_list), sum(task_achievement_list) / len(task_achievement_list)
+        return np.mean(total_reward_list), sum(task_achievement_list) / len(task_achievement_list), len(weight_history)-1

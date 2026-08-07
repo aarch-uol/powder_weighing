@@ -106,12 +106,13 @@ class WeighingEnv(gym.Env):
 				counter+=1
 				if counter ==3:
 					motion_fault = True
+					break
 		counter=0
 		if motion_fault is False:
 			while True:
 				try:
 					if self.duration_based_shake:
-						self.robot.shake(action[0], duration=0.12)
+						self.robot.shake(action[0], duration=0.11)
 					else:
 						self.robot.shake(action[0])
 					break
@@ -119,6 +120,7 @@ class WeighingEnv(gym.Env):
 					# mark the step as if it had failed for it to be repeated
 					print("The step was incomplete")
 					motion_fault = True
+					break
 					# raise Exception("Shake return failed. Environment needs to be reset")
 			# sleep a bit for the scale to chill
 			time.sleep(2)

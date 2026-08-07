@@ -146,6 +146,7 @@ def main():
     parser.add_argument("--samples",type=int, help="Number of samples to be measured", default=1)
     parser.add_argument("--config", help="Path to configuration file", default="config.json")
     parser.add_argument("--no_vision", action='store_true',  help="Whether to use vision for the experiment", default=False)
+    parser.add_argument("--autoload", action='store_true',  help="Whether to autoload the tool", default=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -177,13 +178,30 @@ def main():
         'random_new_reward': './models/SAC_ISAAC_POWDER_WEIGHING_acute_angle',
         'spoon_07_15_00000000000000': './models/Spoon_0.7_1.5_00000000000000',
         'spoon_15_11_00000000000000': './models/Spoon_1.1_1.5_00000000000000',
-        'spoon_11_11_11111111111111': './models/Spoon_11_11_11111111111111',
+        'spoon_07_11_00000000000000': './models/spoon_07_11_00000000000000',
+        'spoon_07_07_11111111111111': './models/spoon_07_07_11111111111111',
+        'spoon_11_15_11111111111111': './models/Spoon_1.1_1.5_11111111111111',
         'spoon_15_15_00011111111000': './models/Spoon_1.5_1.5_00011111111000',
         'spoon_11_11_00011111111000': './models/Spoon_11_11_00011111111000',
         'spoon_10_10_00000000000000_aor28': './models/Spoon_10_10_00000000000000_aor28',
         'baseline_policy': './models/baseline_policy_simulation',
         'spoon_basic_full_set_fast': './models/Spoon_10_10_00000000000000_full_set_fast',
-        'spoon_10_10_00000000000000_aor32': './models/Spoon_10_10_00000000000000_aor_32'
+        'spoon_10_10_00000000000000_aor32': './models/Spoon_10_10_00000000000000_aor_32',
+        'spoon_10_10_00000000000000_aor42': './models/spoon_10_10_00000000000000_aor42',
+        'spoon_10_10_00000000000000_aor37': './models/spoon_10_10_00000000000000_aor37',
+        'spoon_11_11_11111111111111': './models/Spoon_11_11_11111111111111',
+        'spoon_spoon_nomal_fast_tp_env':'./models/spoon_nomal_fast_tp_env',
+        'spoon_10_10_00000000000000_new_sim_aor28': './models/spoon_10_10_00000000000000_new_sim_aor28',
+        'spoon_10_10_00000000000000_new_sim_aor33': './models/spoon_10_10_00000000000000_new_sim_aor33',
+        'spoon_10_10_00000000000000_new_sim_aor37': './models/spoon_10_10_00000000000000_new_sim_aor37',
+        'spoon_10_10_00000000000000_new_sim_aor42': './models/spoon_10_10_00000000000000_new_sim_aor42',
+        'spoon_11_11_11111111111111_vol': './models/spoon_11_11_11111111111111_vol',
+        'spoon_11_07_00011111111000_vol': './models/spoon_11_07_00011111111000_vol',
+        'spoon_11_11_00011111111000_vol': './models/spoon_11_11_00011111111000_vol',
+        'spoon_15_15_00011111111000_vol': './models/spoon_15_15_00011111111000_vol',
+        'spoon_07_11_00000000000000_vol': './models/spoon_07_11_00000000000000_vol',
+        'spoon_15_11_00000000000000_vol': './models/spoon_15_11_00000000000000_vol',
+
     }
 
     model = args.model
@@ -196,7 +214,7 @@ def main():
         print(f"""Model {model} not known. Exiting """)
         exit(1)
 
-    scooper.load_powder()
+    # scooper.load_powder()
     scooper.pickup_spoon()
     
 
@@ -215,48 +233,60 @@ def main():
             csv_writer = csv.writer(file, delimiter = ' ', )
             csv_writer.writerow(['Final Weight', 'Target weight', 'Error'])
             means =[]
+            lengths = []
             i=0
+            
             while i<args.samples:
-                try:
-                    scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision, starting_angle=45, length=0.02)
-                except: 
-                    env.env.robot.robot.recover_from_errors()
-                    continue
-                if not scoop_success:
-                    input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
-                    continue
-                
+                if args.autoload:
+                    try:
+                        scoop_success, scoop_angle = scooper.scoop(vision_check=not args.no_vision, starting_angle=45, length=0.02)
+                    except: 
+                        env.env.robot.robot.recover_from_errors()
+                        continue
+                    if not scoop_success:
+                        input("System was not able to achieve a good scoop. Press ENTER to continue or close program...")
+                        continue
+                    
 
-                # for dual speed (not sure if necessary) 
-                print(scoop_angle)
-                if scoop_angle <40: 
-                    env.env.robot.set_shake_dynamics_factor(SLOW_SHAKE)
-                else:
-                     env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
+                    # for dual speed (not sure if necessary) 
+                    print(scoop_angle)
+                    if scoop_angle <40: 
+                        env.env.robot.set_shake_dynamics_factor(SLOW_SHAKE)
+                    else:
+                        env.env.robot.set_shake_dynamics_factor(FAST_SHAKE)
                 # next line is only for baseline experiments. Adjust speed accordingly
-                
+                else: 
+                    env.env.robot.reset()
+                    input("Please load the tool. Press ENTER to continue or close program...")
+                    scoop_angle='manual'
+                    
                 print(env.env.robot.shake_dynamics_factor)
                 
                 try:
-                    agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
+                    _, _, length = agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target, action_plot=True)
                 except Exception as e:
                     print(f"Error occurred: {e}")
-                    continue 
+                    continue
+                    
                 
                 # agent.test(model_path=model_path, test_num=1, render_flag=False, target_weight=target)
 
                 i+=1 
                 final_weight = env.env.get_observation()[0]*2
                 print(f'Experiment results are: {[final_weight, target, abs(target-final_weight), scoop_angle]}')
-                csv_writer.writerow([final_weight, target, abs(target-final_weight), scoop_angle])
+                csv_writer.writerow([final_weight, target, abs(target-final_weight), scoop_angle, length])
                 file.flush()
+                lengths.append(length)
                 means.append(abs(target-final_weight)) 
-                scooper.reset_scoop_pose()
+                if args.autoload:
+                    scooper.reset_scoop_pose()
 
             print(means)
-            csv_writer.writerow(['Average', np.mean(means), np.std(means)])
+            csv_writer.writerow(['Average', np.mean(means), np.std(means), np.mean(lengths)])
+    if not args.autoload:
+        scooper.reset_scoop_pose()
     scooper.drop_spoon()
-    scooper.unload_powder()
+    # scooper.unload_powder()
         
 
 if __name__=="__main__":
